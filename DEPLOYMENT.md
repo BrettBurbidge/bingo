@@ -1,6 +1,6 @@
 # 🚀 Vercel Deployment Guide
 
-This guide will help you deploy your Cruise Bingo application to Vercel.
+This guide will help you deploy your Bingo application to Vercel.
 
 ## 📋 Prerequisites
 
@@ -70,15 +70,15 @@ In your Vercel project dashboard:
 1. Go to **Settings** → **Environment Variables**
 2. Add these variables for **Production**:
 
-| Variable Name               | Value                                   | Required |
-| --------------------------- | --------------------------------------- | -------- |
-| `PUBLIC_SUPABASE_URL`       | `https://your-id.supabase.co`           | ✅       |
-| `PUBLIC_SUPABASE_ANON_KEY`  | Your Supabase anon key                  | ✅       |
-| `SUPABASE_SERVICE_ROLE_KEY` | Your Supabase service role key          | ✅       |
-| `DATABASE_URL`              | Supabase connection pooling URL         | ✅       |
-| `DIRECT_URL`                | Supabase direct connection URL          | ✅       |
-| `RESEND_API_KEY`            | Your Resend API key                     | ✅       |
-| `RESEND_FROM_EMAIL`         | `Cruise Bingo <noreply@yourdomain.com>` | ✅       |
+| Variable Name               | Value                            | Required |
+| --------------------------- | -------------------------------- | -------- |
+| `PUBLIC_SUPABASE_URL`       | `https://your-id.supabase.co`    | ✅       |
+| `PUBLIC_SUPABASE_ANON_KEY`  | Your Supabase anon key           | ✅       |
+| `SUPABASE_SERVICE_ROLE_KEY` | Your Supabase service role key   | ✅       |
+| `DATABASE_URL`              | Supabase connection pooling URL  | ✅       |
+| `DIRECT_URL`                | Supabase direct connection URL   | ✅       |
+| `RESEND_API_KEY`            | Your Resend API key              | ✅       |
+| `RESEND_FROM_EMAIL`         | `Bingo <noreply@yourdomain.com>` | ✅       |
 
 ### 🔑 Where to Find These Values:
 
@@ -102,10 +102,10 @@ https://resend.com/api-keys:
 - RESEND_API_KEY: Create new API key
 
 For production (verify domain first):
-- RESEND_FROM_EMAIL: Cruise Bingo <noreply@yourdomain.com>
+- RESEND_FROM_EMAIL: Bingo <noreply@yourdomain.com>
 
 For testing:
-- RESEND_FROM_EMAIL: Cruise Bingo <onboarding@resend.dev>
+- RESEND_FROM_EMAIL: Bingo <onboarding@resend.dev>
 ```
 
 ## 🗄️ Step 4: Database Migration
@@ -169,4 +169,4 @@ npx prisma db push
 
 ---
 
-🎯 **Your Cruise Bingo app will be live at:** `https://your-project.vercel.app`
+🎯 **Your Bingo app will be live at:** `https://your-project.vercel.app`

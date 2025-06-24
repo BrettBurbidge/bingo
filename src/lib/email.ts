@@ -6,7 +6,7 @@ const resend = new Resend(RESEND_API_KEY);
 
 // Get the from email address from environment with fallback
 const getFromEmail = () => {
-  return env.RESEND_FROM_EMAIL || "Cruise Bingo <onboarding@resend.dev>";
+  return env.RESEND_FROM_EMAIL || "Bingo <onboarding@resend.dev>";
 };
 
 // Check if we're using the test domain
@@ -36,12 +36,12 @@ export async function sendGameInviteEmail(
 
   const inviteUrl = `${baseUrl}/invite/${data.inviteToken}`;
 
-  const subject = `🎮 You're invited to play "${data.gameName}" - Cruise Bingo!`;
+  const subject = `🎮 You're invited to play "${data.gameName}" - Bingo!`;
 
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="text-align: center; margin-bottom: 30px;">
-        <h1 style="color: #0066cc; margin: 0;">🚢 Cruise Bingo</h1>
+        <h1 style="color: #0066cc; margin: 0;">🎯 Bingo</h1>
       </div>
       
       <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; text-align: center; margin-bottom: 30px;">
@@ -51,7 +51,7 @@ export async function sendGameInviteEmail(
 
       <div style="padding: 20px; background: #f8f9fa; border-radius: 8px; margin-bottom: 30px;">
         <p style="margin: 0 0 15px 0;">
-          <strong>${data.inviterName}</strong> (${data.inviterEmail}) has invited you to join their Cruise Bingo game!
+          <strong>${data.inviterName}</strong> (${data.inviterEmail}) has invited you to join their Bingo game!
         </p>
         
         ${
@@ -69,8 +69,8 @@ export async function sendGameInviteEmail(
       </div>
 
       <div style="border-top: 1px solid #dee2e6; padding-top: 20px; color: #6c757d; font-size: 14px;">
-        <p><strong>What is Cruise Bingo?</strong></p>
-        <p>It's a fun multiplayer bingo game where players compete to be the first to get 5 in a row! Perfect for cruise trips, parties, or just hanging out with friends.</p>
+        <p><strong>What is Bingo?</strong></p>
+        <p>It's a fun multiplayer bingo game where players compete to be the first to get 5 in a row! Perfect for trips, parties, or just hanging out with friends.</p>
         
         <p style="margin-top: 20px;">
           <small>This invite will expire in 7 days. If you have any questions, reply to this email.</small>
@@ -80,9 +80,9 @@ export async function sendGameInviteEmail(
   `;
 
   const text = `
-You're invited to play "${data.gameName}" - Cruise Bingo!
+You're invited to play "${data.gameName}" - Bingo!
 
-${data.inviterName} (${data.inviterEmail}) has invited you to join their Cruise Bingo game.
+${data.inviterName} (${data.inviterEmail}) has invited you to join their Bingo game.
 
 ${
   data.isRegistered
@@ -92,7 +92,7 @@ ${
 
 ${inviteUrl}
 
-What is Cruise Bingo?
+What is Bingo?
 It's a fun multiplayer bingo game where players compete to be the first to get 5 in a row!
 
 This invite will expire in 7 days.

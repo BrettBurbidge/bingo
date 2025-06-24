@@ -1,10 +1,11 @@
 import { json, error } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { prisma } from "$lib/prisma";
+import { calculateScore } from "$lib/scoring";
 
 export const PUT: RequestHandler = async ({ params, request }) => {
   try {
-    const { guestId, completedCells } = await request.json();
+    const { guestId, completedCells, photoUrls } = await request.json();
     const gameId = params.id;
 
     if (!guestId || !gameId || !Array.isArray(completedCells)) {
@@ -20,6 +21,9 @@ export const PUT: RequestHandler = async ({ params, request }) => {
             id: true,
             status: true,
             publishedAt: true,
+            bonusSquare: true,
+            wildcardSquare: true,
+            squareMarkHistory: true,
           },
         },
       },
@@ -41,20 +45,66 @@ export const PUT: RequestHandler = async ({ params, request }) => {
       throw error(400, "Game is not yet available");
     }
 
-    // Calculate score (number of completed cells)
-    const score = completedCells.length;
+    // Update mark history for first-to-mark bonus tracking
+    const newSquares = completedCells.filter(
+      (cell) => !guestParticipant.completedCells.includes(cell)
+    );
+    let updatedMarkHistory = [
+      ...(guestParticipant.game.squareMarkHistory as any[]),
+    ];
+
+    for (const newSquare of newSquares) {
+      const existingHistory = updatedMarkHistory.find(
+        (h: any) => h.cellIndex === newSquare
+      );
+      if (!existingHistory) {
+        updatedMarkHistory.push({
+          cellIndex: newSquare,
+          firstParticipantId: guestParticipant.id,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
+    // Update game mark history
+    await prisma.game.update({
+      where: { id: gameId },
+      data: {
+        squareMarkHistory: updatedMarkHistory,
+      },
+    });
+
+    // Calculate advanced score using new scoring system
+    const gameWithHistory = {
+      ...guestParticipant.game,
+      squareMarkHistory: updatedMarkHistory,
+    };
+    const { score, breakdown } = calculateScore(
+      completedCells,
+      gameWithHistory,
+      guestParticipant.id
+    );
 
     // Check for win condition (5 in a row)
     const hasWon = checkWinCondition(completedCells);
 
+    // Prepare update data
+    const updateData: any = {
+      completedCells,
+      score,
+      scoreBreakdown: breakdown,
+      hasWon,
+    };
+
+    // Include photoUrls if provided
+    if (photoUrls && Array.isArray(photoUrls)) {
+      updateData.photoUrls = photoUrls;
+    }
+
     // Update guest participant
     const updatedParticipant = await prisma.guestParticipant.update({
       where: { id: guestId },
-      data: {
-        completedCells,
-        score,
-        hasWon,
-      },
+      data: updateData,
     });
 
     // If this is the first person to win and game is still active, mark the game as completed

@@ -33,6 +33,9 @@ model Game {
   winnerId          String?            @map("winner_id") @db.Uuid
   wordList          String[]           @default([]) @map("word_list")
   publishedAt       DateTime?          @map("published_at") @db.Timestamptz(6)
+  bonusSquare       Int?               @map("bonus_square") // Random square for first-to-mark bonus
+  wildcardSquare    Int?               @map("wildcard_square") // Random wildcard square with 2x multiplier
+  squareMarkHistory Json[]             @default([]) @map("square_mark_history") // Track who marked what when
   invites           GameInvite[]
   participants      GameParticipant[]
   guestParticipants GuestParticipant[]
@@ -48,8 +51,10 @@ model GameParticipant {
   userId         String   @map("user_id") @db.Uuid
   completedCells Int[]    @default([12]) @map("completed_cells")
   score          Int      @default(1)
+  scoreBreakdown Json[]   @default([]) @map("score_breakdown") // Track how points were earned
   joinedAt       DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
   boardData      String[] @default([]) @map("board_data")
+  photoUrls      String[] @default([]) @map("photo_urls")
   hasWon         Boolean  @default(false) @map("has_won")
   game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
   user           Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -64,8 +69,10 @@ model GuestParticipant {
   guestName      String   @map("guest_name")
   completedCells Int[]    @default([12]) @map("completed_cells")
   score          Int      @default(1)
+  scoreBreakdown Json[]   @default([]) @map("score_breakdown") // Track how points were earned
   joinedAt       DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
   boardData      String[] @default([]) @map("board_data")
+  photoUrls      String[] @default([]) @map("photo_urls")
   hasWon         Boolean  @default(false) @map("has_won")
   game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
 

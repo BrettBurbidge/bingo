@@ -78,7 +78,7 @@
 </script>
 
 <svelte:head>
-  <title>Game Invitation - Cruise Bingo</title>
+  <title>Game Invitation - Bingo</title>
 </svelte:head>
 
 {#if loading}
@@ -108,7 +108,7 @@
       <div class="mx-auto h-16 w-16 mb-4 text-6xl">🎮</div>
       <h1 class="text-3xl font-bold tracking-tight mb-2">You're Invited!</h1>
       <p class="text-muted-foreground">
-        Join the fun and play Cruise Bingo with your friends
+                    Join the fun and play Bingo with your friends
       </p>
     </div>
 
@@ -217,10 +217,10 @@
     <Card.Root class="bg-muted/50">
       <Card.Content class="pt-6">
         <div class="text-center space-y-2">
-          <h3 class="font-semibold">What is Cruise Bingo?</h3>
+                        <h3 class="font-semibold">What is Bingo?</h3>
           <p class="text-sm text-muted-foreground">
             A fun multiplayer game where players compete to be the first to get 5 in a row on their bingo board. 
-            Perfect for cruise trips, parties, or just hanging out with friends!
+                          Perfect for trips, parties, or just hanging out with friends!
           </p>
         </div>
       </Card.Content>

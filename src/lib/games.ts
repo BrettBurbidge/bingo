@@ -47,19 +47,14 @@ export async function createGame(
 export async function getGame(
   gameId: string
 ): Promise<GameWithRelations | null> {
-  const game = await prisma.game.findUnique({
-    where: { id: gameId },
-    include: {
-      gameMaster: true,
-      participants: {
-        include: {
-          user: true,
-        },
-      },
-    },
-  });
+  const response = await fetch(`/api/games/${gameId}`);
 
-  return game;
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to fetch game");
+  }
+
+  return response.json();
 }
 
 export async function getUserGames(userId: string): Promise<Game[]> {
@@ -77,53 +72,59 @@ export async function joinGame(
   gameId: string,
   userId: string
 ): Promise<GameParticipant> {
-  const participant = await prisma.gameParticipant.create({
-    data: {
-      gameId,
-      userId,
-      completedCells: [12], // Center cell (index 12 in 0-24 grid) is free
-      score: 1, // Start with 1 for the free space
+  const response = await fetch(`/api/games/${gameId}/join`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
     },
+    body: JSON.stringify({ userId }),
   });
 
-  return participant;
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to join game");
+  }
+
+  return response.json();
 }
 
 export async function getGameParticipants(
   gameId: string
 ): Promise<GameParticipantWithUser[]> {
-  const participants = await prisma.gameParticipant.findMany({
-    where: { gameId },
-    include: {
-      user: true,
-    },
-    orderBy: {
-      score: "desc",
-    },
-  });
+  const response = await fetch(`/api/games/${gameId}/participants`);
 
-  return participants;
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to fetch participants");
+  }
+
+  return response.json();
 }
 
 export async function updateParticipantScore(
   gameId: string,
   userId: string,
-  completedCells: number[]
+  completedCells: number[],
+  photoUrls?: string[]
 ): Promise<GameParticipant> {
-  const participant = await prisma.gameParticipant.update({
-    where: {
-      gameId_userId: {
-        gameId,
-        userId,
-      },
+  const response = await fetch(`/api/games/${gameId}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
     },
-    data: {
+    body: JSON.stringify({
+      userId,
       completedCells,
-      score: completedCells.length,
-    },
+      photoUrls,
+    }),
   });
 
-  return participant;
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to update participant score");
+  }
+
+  return response.json();
 }
 
 export async function inviteUserToGame(

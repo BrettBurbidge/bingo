@@ -1,5 +1,6 @@
 import { json } from "@sveltejs/kit";
 import { prisma } from "$lib/prisma";
+import { generateGameSpecialSquares } from "$lib/scoring";
 import type { RequestHandler } from "./$types";
 
 export const POST: RequestHandler = async ({ request, params }) => {
@@ -38,11 +39,16 @@ export const POST: RequestHandler = async ({ request, params }) => {
     // Generate a randomized board for the game master
     const gameMasterBoard = generateRandomizedBoard(wordList);
 
+    // Generate special squares for advanced scoring
+    const { bonusSquare, wildcardSquare } = generateGameSpecialSquares();
+
     // Update game with words and start it
     const updatedGame = await prisma.game.update({
       where: { id: gameId },
       data: {
         wordList,
+        bonusSquare,
+        wildcardSquare,
         status: "ACTIVE",
       },
     });

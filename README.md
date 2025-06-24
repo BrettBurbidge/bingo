@@ -1,6 +1,6 @@
-# Cruise Bingo
+# Bingo
 
-A multiplayer bingo game built with SvelteKit, Supabase, Prisma, and Tailwind CSS. Perfect for cruise activities where multiple players can join games and compete on shared bingo boards!
+A multiplayer bingo game built with SvelteKit, Supabase, Prisma, and Tailwind CSS. Perfect for group activities where multiple players can join games and compete on shared bingo boards!
 
 ## Features
 
@@ -35,7 +35,7 @@ A multiplayer bingo game built with SvelteKit, Supabase, Prisma, and Tailwind CS
 
 \`\`\`bash
 git clone <your-repo-url>
-cd CruiseBingo
+cd Bingo
 npm install
 \`\`\`
 
@@ -255,7 +255,7 @@ The application uses these main models:
 
 1. **Sign Up/Sign In**: Create an account or sign in with existing credentials
 2. **Create a Game**: Click "Create New Game" on the dashboard
-3. **Customize Board**: Edit the default bingo board content to match your cruise activities
+3. **Customize Board**: Edit the default bingo board content to match your activities
 4. **Invite Players**: Share the game by inviting players via email
 5. **Play**: Players can mark completed squares and see real-time leaderboards
 6. **Track Progress**: Monitor scores and compete with friends!
@@ -291,4 +291,4 @@ prisma/
 
 ## License
 
-MIT License - feel free to use this project for your own cruise bingo games!
+MIT License - feel free to use this project for your own bingo games!

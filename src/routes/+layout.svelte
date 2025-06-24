@@ -39,7 +39,7 @@
             >
               <span class="text-sm font-bold">CB</span>
             </div>
-            <span class="hidden font-bold sm:inline-block">Cruise Bingo</span>
+            <span class="hidden font-bold sm:inline-block">Bingo</span>
           </a>
           <nav class="flex items-center gap-6 text-sm">
             <a
@@ -68,7 +68,7 @@
               >
                 <span class="text-sm font-bold">CB</span>
               </div>
-              <span class="font-bold">Cruise Bingo</span>
+              <span class="font-bold">Bingo</span>
             </a>
           </div>
 

@@ -101,7 +101,7 @@
 </script>
 
 <svelte:head>
-  <title>Setup {game?.name || "Game"} - Cruise Bingo</title>
+  <title>Setup {game?.name || "Game"} - Bingo</title>
 </svelte:head>
 
 {#if loading}
@@ -152,9 +152,9 @@
         <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {#each words as word, index}
             <div class="space-y-2">
-              <Label for="word-{index}">Word {index + 1}</Label>
+              <label for={`word-${index}`} class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50">Word {index + 1}</label>
               <Input
-                id="word-{index}"
+                id={`word-${index}`}
                 bind:value={words[index]}
                 placeholder="Enter word or phrase..."
                 maxlength="50"

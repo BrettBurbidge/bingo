@@ -299,7 +299,7 @@
 </script>
 
 <svelte:head>
-  <title>{game?.name || "Game"} - Cruise Bingo</title>
+  <title>{game?.name || "Game"} - Bingo</title>
 </svelte:head>
 
 {#if loading}

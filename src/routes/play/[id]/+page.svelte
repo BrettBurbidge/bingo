@@ -14,6 +14,10 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import { Badge } from "$lib/components/ui/badge";
+  import CameraCapture from "$lib/components/CameraCapture.svelte";
+  import ScoringRules from "$lib/components/ScoringRules.svelte";
+  import { uploadPhoto } from "$lib/storage";
+  import "$lib/setup-storage";
   import type { GuestParticipant } from "@prisma/client";
 
   type AllParticipants = {
@@ -32,6 +36,14 @@
   let joinLoading = false;
   let guestName = "";
   let joinError = "";
+  let showCameraModal = false;
+  let selectedCellIndex = -1;
+  let selectedCellText = "";
+  let photoUploading = false;
+  let showPhotoModal = false;
+  let selectedPhotoUrl = "";
+  let selectedPhotoText = "";
+  let photoActionLoading = false;
 
   $: gameId = $page.params.id;
   $: sortedParticipants = allParticipants.sort((a, b) => b.score - a.score);
@@ -122,6 +134,24 @@
     }
   }
 
+  function handleCellClick(cellIndex: number) {
+    const row = Math.floor(cellIndex / 5);
+    const col = cellIndex % 5;
+    const photoUrl = getCellPhotoUrl(row, col);
+    
+    // If there's a photo, show the photo modal
+    if (photoUrl) {
+      selectedCellIndex = cellIndex;
+      selectedPhotoUrl = photoUrl;
+      selectedPhotoText = getCellContent(row, col);
+      showPhotoModal = true;
+      return;
+    }
+    
+    // Otherwise, handle normal cell toggle
+    toggleCell(cellIndex);
+  }
+
   async function toggleCell(cellIndex: number) {
     if (!guestParticipant) return;
     
@@ -135,19 +165,195 @@
     const cellIndexInCompleted = completedCells.indexOf(cellIndex);
 
     if (cellIndexInCompleted > -1) {
-      // Remove cell
+      // Unchecking - just remove the cell (and photo if any)
       completedCells.splice(cellIndexInCompleted, 1);
+      
+      // Clear the photo URL for this cell
+      const currentPhotoUrls = guestParticipant.photoUrls || [];
+      const photoUrls = [];
+      
+      // Fill the array up to index 24 (for a 5x5 grid)
+      for (let i = 0; i < 25; i++) {
+        if (i === cellIndex) {
+          photoUrls[i] = ""; // Clear this photo
+        } else if (i < currentPhotoUrls.length) {
+          photoUrls[i] = currentPhotoUrls[i] || "";
+        } else {
+          photoUrls[i] = "";
+        }
+      }
+      
+      // Update without requiring photo
+      try {
+        const updated = await updateGuestParticipantScore(gameId, guestParticipant.id, completedCells, photoUrls);
+        guestParticipant = updated;
+        await loadGameData();
+      } catch (error) {
+        console.error("Error updating score:", error);
+      }
     } else {
-      // Add cell
-      completedCells.push(cellIndex);
+      // Checking - require photo
+      selectedCellIndex = cellIndex;
+      selectedCellText = getCellContent(Math.floor(cellIndex / 5), cellIndex % 5);
+      showCameraModal = true;
     }
+  }
+
+  async function handlePhotoTaken(event: CustomEvent<File>) {
+    if (!guestParticipant || selectedCellIndex === -1) return;
 
     try {
-      const updated = await updateGuestParticipantScore(gameId, guestParticipant.id, completedCells);
+      photoUploading = true;
+      
+      // Upload photo via API endpoint
+      const formData = new FormData();
+      formData.append('file', event.detail);
+      formData.append('participantId', guestParticipant.id);
+      formData.append('cellIndex', selectedCellIndex.toString());
+
+      const uploadResponse = await fetch(`/api/games/${gameId}/photos`, {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!uploadResponse.ok) {
+        const errorData = await uploadResponse.json();
+        throw new Error(errorData.error || 'Failed to upload photo');
+      }
+
+      const uploadResult = await uploadResponse.json();
+
+      // Store the cell index before clearing it
+      const cellIndex = selectedCellIndex;
+
+      // Close the camera modal immediately after successful upload
+      showCameraModal = false;
+      selectedCellIndex = -1;
+      selectedCellText = "";
+
+      // Add cell to completed cells
+      const completedCells = [...guestParticipant.completedCells, cellIndex];
+      
+      // Create a proper photoUrls array - initialize with empty strings up to the cell index
+      const currentPhotoUrls = guestParticipant.photoUrls || [];
+      const photoUrls = [];
+      
+      // Fill the array up to index 24 (for a 5x5 grid)
+      for (let i = 0; i < 25; i++) {
+        if (i === cellIndex) {
+          photoUrls[i] = uploadResult.photoUrl;
+        } else if (i < currentPhotoUrls.length) {
+          photoUrls[i] = currentPhotoUrls[i] || "";
+        } else {
+          photoUrls[i] = "";
+        }
+      }
+
+      // Update participant with new photo (this happens in background)
+      const updated = await updateGuestParticipantScore(gameId, guestParticipant.id, completedCells, photoUrls);
       guestParticipant = updated;
       await loadGameData();
     } catch (error) {
-      console.error("Error updating score:", error);
+      console.error("Error uploading photo:", error);
+      alert(`Failed to upload photo: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      photoUploading = false;
+    }
+  }
+
+  function handleCameraCancel() {
+    showCameraModal = false;
+    selectedCellIndex = -1;
+    selectedCellText = "";
+  }
+
+  async function handleRemovePhoto() {
+    if (!guestParticipant || selectedCellIndex === -1) return;
+
+    try {
+      photoActionLoading = true;
+      // Keep the cell as completed but remove the photo
+      const completedCells = [...guestParticipant.completedCells];
+      const currentPhotoUrls = guestParticipant.photoUrls || [];
+      const photoUrls = [];
+      
+      // Fill the array up to index 24 (for a 5x5 grid)
+      for (let i = 0; i < 25; i++) {
+        if (i === selectedCellIndex) {
+          photoUrls[i] = ""; // Clear this photo
+        } else if (i < currentPhotoUrls.length) {
+          photoUrls[i] = currentPhotoUrls[i] || "";
+        } else {
+          photoUrls[i] = "";
+        }
+      }
+      
+      const updated = await updateGuestParticipantScore(gameId, guestParticipant.id, completedCells, photoUrls);
+      guestParticipant = updated;
+      await loadGameData();
+      
+      showPhotoModal = false;
+      selectedCellIndex = -1;
+      selectedPhotoUrl = "";
+      selectedPhotoText = "";
+    } catch (error) {
+      console.error("Error removing photo:", error);
+      alert(`Failed to remove photo: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      photoActionLoading = false;
+    }
+  }
+
+  function handleChangePhoto() {
+    if (!guestParticipant || selectedCellIndex === -1) return;
+    
+    // Close photo modal and open camera modal to take a new photo
+    showPhotoModal = false;
+    selectedCellText = getCellContent(Math.floor(selectedCellIndex / 5), selectedCellIndex % 5);
+    showCameraModal = true;
+  }
+
+  async function handleUnselectSquare() {
+    if (!guestParticipant || selectedCellIndex === -1) return;
+
+    try {
+      photoActionLoading = true;
+      // Remove the cell from completed cells and clear the photo
+      const completedCells = [...guestParticipant.completedCells];
+      const cellIndexInCompleted = completedCells.indexOf(selectedCellIndex);
+      
+      if (cellIndexInCompleted > -1) {
+        completedCells.splice(cellIndexInCompleted, 1);
+      }
+      
+      // Clear the photo URL for this cell
+      const currentPhotoUrls = guestParticipant.photoUrls || [];
+      const photoUrls = [];
+      
+      // Fill the array up to index 24 (for a 5x5 grid)
+      for (let i = 0; i < 25; i++) {
+        if (i === selectedCellIndex) {
+          photoUrls[i] = ""; // Clear this photo
+        } else if (i < currentPhotoUrls.length) {
+          photoUrls[i] = currentPhotoUrls[i] || "";
+        } else {
+          photoUrls[i] = "";
+        }
+      }
+      
+      const updated = await updateGuestParticipantScore(gameId, guestParticipant.id, completedCells, photoUrls);
+      guestParticipant = updated;
+      await loadGameData();
+      
+      showPhotoModal = false;
+      selectedCellIndex = -1;
+      selectedPhotoUrl = "";
+      selectedPhotoText = "";
+    } catch (error) {
+      console.error("Error unselecting square:", error);
+      alert(`Failed to unselect square: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      photoActionLoading = false;
     }
   }
 
@@ -226,10 +432,54 @@
   function getUserRank(userId: string): number {
     return sortedParticipants.findIndex((p) => p.id === userId) + 1;
   }
+
+  function isBonusSquare(row: number, col: number): boolean {
+    const cellIndex = row * 5 + col;
+    return game?.bonusSquare === cellIndex;
+  }
+
+  function isWildcardSquare(row: number, col: number): boolean {
+    const cellIndex = row * 5 + col;
+    return game?.wildcardSquare === cellIndex;
+  }
+
+  function getCellPhotoUrl(row: number, col: number): string | null {
+    const cellIndex = row * 5 + col;
+    
+    // If user is joined, show their photo
+    if (guestParticipant?.photoUrls && guestParticipant.photoUrls[cellIndex] && guestParticipant.photoUrls[cellIndex] !== "") {
+      return guestParticipant.photoUrls[cellIndex];
+    }
+    
+    // For non-participants viewing completed games, show the winner's photo if available
+    if (game?.status === "COMPLETED") {
+      // Try to find winner among authenticated participants first
+      const authWinner = game.participants.find(p => p.hasWon);
+      if (authWinner?.photoUrls && authWinner.photoUrls[cellIndex] && authWinner.photoUrls[cellIndex] !== "") {
+        return authWinner.photoUrls[cellIndex];
+      }
+      
+      // Then try guest participants
+      const guestWinner = game.guestParticipants.find(p => p.hasWon);
+      if (guestWinner?.photoUrls && guestWinner.photoUrls[cellIndex] && guestWinner.photoUrls[cellIndex] !== "") {
+        return guestWinner.photoUrls[cellIndex];
+      }
+      
+      // Fallback to first participant's photos
+      if (game.participants[0]?.photoUrls && game.participants[0].photoUrls[cellIndex] && game.participants[0].photoUrls[cellIndex] !== "") {
+        return game.participants[0].photoUrls[cellIndex];
+      }
+      if (game.guestParticipants[0]?.photoUrls && game.guestParticipants[0].photoUrls[cellIndex] && game.guestParticipants[0].photoUrls[cellIndex] !== "") {
+        return game.guestParticipants[0].photoUrls[cellIndex];
+      }
+    }
+    
+    return null;
+  }
 </script>
 
 <svelte:head>
-  <title>{game?.name || "Bingo Game"} - Cruise Bingo</title>
+  <title>{game?.name || "Bingo Game"} - Bingo</title>
 </svelte:head>
 
 <!-- Join Game Modal -->
@@ -248,7 +498,6 @@
           id="guest-name"
           bind:value={guestName}
           placeholder="Enter your name"
-          on:keydown={(e) => e.key === 'Enter' && handleJoinGame()}
         />
         {#if joinError}
           <p class="text-sm text-red-500">{joinError}</p>
@@ -412,19 +661,52 @@
                 {#each Array(5) as _, col}
                   {@const isCompleted = isCellCompleted(row, col)}
                   {@const isCenter = isCenterCell(row, col)}
+                  {@const photoUrl = getCellPhotoUrl(row, col)}
+                  {@const isBonus = isBonusSquare(row, col)}
+                  {@const isWildcard = isWildcardSquare(row, col)}
                   <button
-                    class="p-1 text-[10px] font-medium border-2 rounded-lg transition-colors min-h-[70px] active:scale-95 flex items-center justify-center
-                      {isCompleted
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-background hover:bg-muted border-border'}
-                      {isCenter ? 'bg-muted' : ''}
-                      {game?.status === 'COMPLETED' && sortedParticipants.some(p => p.hasWon) ? 'cursor-not-allowed opacity-75' : ''}"
-                    on:click={() => toggleCell(row * 5 + col)}
-                    disabled={isCenter || (game?.status === 'COMPLETED' && sortedParticipants.some(p => p.hasWon))}
+                                          class="p-1 text-[10px] font-medium border-2 rounded-lg transition-colors min-h-[70px] active:scale-95 flex flex-col items-center justify-center relative overflow-hidden
+                        {isCompleted
+                          ? 'bg-primary text-primary-foreground border-primary'
+                          : 'bg-background hover:bg-muted border-border'}
+                        {isCenter ? 'bg-muted' : ''}
+                        {isBonus ? 'border-blue-400 bg-blue-50 dark:bg-blue-950' : ''}
+                        {isWildcard ? 'border-purple-400 bg-purple-50 dark:bg-purple-950' : ''}
+                        {game?.status === 'COMPLETED' && sortedParticipants.some(p => p.hasWon) ? 'cursor-not-allowed opacity-75' : ''}"
+                    on:click={() => handleCellClick(row * 5 + col)}
+                    disabled={isCenter}
+                  
                   >
-                    <span class="block leading-tight break-words text-center hyphens-auto max-w-full">
-                      {getCellContent(row, col)}
-                    </span>
+                                          {#if photoUrl}
+                        <img 
+                          src={photoUrl} 
+                          alt="Proof photo" 
+                          class="absolute inset-0 w-full h-full object-cover rounded-md"
+                        />
+                        <div class="absolute inset-0 bg-black bg-opacity-30 rounded-md"></div>
+                        <span class="relative z-10 text-white text-shadow font-bold leading-tight break-words text-center hyphens-auto max-w-full">
+                          {getCellContent(row, col)}
+                        </span>
+                        {#if isCompleted}
+                          <div class="absolute top-1 right-1 text-white">✓</div>
+                        {/if}
+                        {#if isBonus}
+                          <div class="absolute bottom-1 left-1 text-xs">🎯</div>
+                        {/if}
+                        {#if isWildcard}
+                          <div class="absolute bottom-1 right-1 text-xs">🃏</div>
+                        {/if}
+                      {:else}
+                        <span class="block leading-tight break-words text-center hyphens-auto max-w-full">
+                          {getCellContent(row, col)}
+                        </span>
+                        {#if isBonus}
+                          <div class="absolute bottom-1 left-1 text-xs opacity-60">🎯</div>
+                        {/if}
+                        {#if isWildcard}
+                          <div class="absolute bottom-1 right-1 text-xs opacity-60">🃏</div>
+                        {/if}
+                      {/if}
                   </button>
                 {/each}
               {/each}
@@ -473,6 +755,9 @@
             </div>
           </Card.Content>
         </Card.Root>
+
+        <!-- Mobile Scoring Rules -->
+        <ScoringRules {game} />
       </div>
 
       <!-- Desktop Layout -->
@@ -551,19 +836,51 @@
                     {#each Array(5) as _, col}
                       {@const isCompleted = isCellCompleted(row, col)}
                       {@const isCenter = isCenterCell(row, col)}
+                      {@const photoUrl = getCellPhotoUrl(row, col)}
+                      {@const isBonus = isBonusSquare(row, col)}
+                      {@const isWildcard = isWildcardSquare(row, col)}
                       <button
-                        class="aspect-square p-3 text-sm font-medium border-2 rounded-lg transition-colors hover:scale-105
+                        class="aspect-square p-3 text-sm font-medium border-2 rounded-lg transition-colors hover:scale-105 relative overflow-hidden flex flex-col items-center justify-center
                           {isCompleted
                             ? 'bg-primary text-primary-foreground border-primary'
                             : 'bg-background hover:bg-muted border-border'}
                           {isCenter ? 'bg-muted' : ''}
+                          {isBonus ? 'border-blue-400 bg-blue-50 dark:bg-blue-950' : ''}
+                          {isWildcard ? 'border-purple-400 bg-purple-50 dark:bg-purple-950' : ''}
                           {game?.status === 'COMPLETED' && sortedParticipants.some(p => p.hasWon) ? 'cursor-not-allowed opacity-75' : ''}"
-                        on:click={() => toggleCell(row * 5 + col)}
-                        disabled={isCenter || (game?.status === 'COMPLETED' && sortedParticipants.some(p => p.hasWon))}
+                        on:click={() => handleCellClick(row * 5 + col)}
+                        disabled={isCenter}
                       >
-                        <span class="block leading-tight">
-                          {getCellContent(row, col)}
-                        </span>
+                        {#if photoUrl}
+                          <img 
+                            src={photoUrl} 
+                            alt="Proof photo" 
+                            class="absolute inset-0 w-full h-full object-cover rounded-md"
+                          />
+                          <div class="absolute inset-0 bg-black bg-opacity-30 rounded-md"></div>
+                          <span class="relative z-10 text-white text-shadow font-bold leading-tight text-center">
+                            {getCellContent(row, col)}
+                          </span>
+                          {#if isCompleted}
+                            <div class="absolute top-2 right-2 text-white text-lg">✓</div>
+                          {/if}
+                          {#if isBonus}
+                            <div class="absolute bottom-2 left-2 text-sm">🎯</div>
+                          {/if}
+                          {#if isWildcard}
+                            <div class="absolute bottom-2 right-2 text-sm">🃏</div>
+                          {/if}
+                        {:else}
+                          <span class="block leading-tight text-center">
+                            {getCellContent(row, col)}
+                          </span>
+                          {#if isBonus}
+                            <div class="absolute bottom-2 left-2 text-sm opacity-60">🎯</div>
+                          {/if}
+                          {#if isWildcard}
+                            <div class="absolute bottom-2 right-2 text-sm opacity-60">🃏</div>
+                          {/if}
+                        {/if}
                       </button>
                     {/each}
                   {/each}
@@ -614,9 +931,79 @@
                 </div>
               </Card.Content>
             </Card.Root>
+
+            <!-- Scoring Rules -->
+            <ScoringRules {game} />
           </div>
-        </div>
+            </div>
+  </div>
+{/if}
+
+<!-- Camera Modal -->
+<CameraCapture 
+  bind:open={showCameraModal}
+  cellText={selectedCellText}
+  on:photo={handlePhotoTaken}
+  on:cancel={handleCameraCancel}
+/>
+
+<!-- Photo View Modal -->
+<Dialog.Root bind:open={showPhotoModal}>
+  <Dialog.Content class="max-w-2xl">
+    <Dialog.Header>
+      <Dialog.Title>Photo for: {selectedPhotoText}</Dialog.Title>
+    </Dialog.Header>
+    <div class="flex justify-center mb-4">
+      <img 
+        src={selectedPhotoUrl} 
+        alt="Proof photo for {selectedPhotoText}"
+        class="max-w-full max-h-96 object-contain rounded-lg"
+      />
+    </div>
+    <Dialog.Footer class="flex gap-2">
+      <Button 
+        variant="destructive" 
+        size="sm"
+        on:click={() => handleRemovePhoto()}
+        disabled={!guestParticipant || photoActionLoading}
+      >
+        {#if photoActionLoading}
+          <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
+        {/if}
+        🗑️ Remove Photo
+      </Button>
+      <Button 
+        variant="outline" 
+        size="sm"
+        on:click={() => handleChangePhoto()}
+        disabled={!guestParticipant || photoActionLoading}
+      >
+        📷 Change Photo
+      </Button>
+      <Button 
+        variant="secondary" 
+        size="sm"
+        on:click={() => handleUnselectSquare()}
+        disabled={!guestParticipant || photoActionLoading}
+      >
+        {#if photoActionLoading}
+          <div class="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-600 mr-1"></div>
+        {/if}
+        ❌ Unselect Square
+      </Button>
+    </Dialog.Footer>
+  </Dialog.Content>
+</Dialog.Root>
+
+{#if photoUploading}
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white p-6 rounded-lg shadow-lg">
+      <div class="flex items-center gap-4">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <span class="text-lg">Uploading photo...</span>
       </div>
-    {/if}
+    </div>
+  </div>
+{/if}
   </div>
 {/if} 

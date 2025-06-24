@@ -74,7 +74,7 @@
 </script>
 
 <svelte:head>
-  <title>Cruise Bingo - {isLogin ? "Sign In" : "Sign Up"}</title>
+        <title>Bingo - {isLogin ? "Sign In" : "Sign Up"}</title>
 </svelte:head>
 
 <div
@@ -96,10 +96,10 @@
             >
               <span class="text-xl font-bold">CB</span>
             </div>
-            <h1 class="text-4xl font-bold tracking-tight">Cruise Bingo</h1>
+            <h1 class="text-4xl font-bold tracking-tight">Bingo</h1>
           </div>
           <p class="text-xl text-muted-foreground">
-            The ultimate multiplayer bingo experience for your cruise adventures
+            The ultimate multiplayer bingo experience for your adventures
           </p>
         </div>
 
@@ -143,13 +143,13 @@
                 ? "Sign in to continue playing"
                 : inviteToken 
                 ? "Create an account to accept your game invitation"
-                : "Join the bingo fun on your cruise"}
+                : "Join the bingo fun"}
             </Card.Description>
             
             {#if inviteToken && !isLogin}
               <div class="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mt-2">
                 <p class="text-sm text-blue-800 dark:text-blue-200 text-center">
-                  🎮 You're signing up to join a Cruise Bingo game!
+                  🎮 You're signing up to join a Bingo game!
                 </p>
               </div>
             {/if}
@@ -246,6 +246,6 @@
 
   <!-- Footer -->
   <footer class="p-4 text-center text-sm text-muted-foreground">
-    <p>Perfect for cruise activities • Multiplayer bingo fun</p>
+              <p>Perfect for group activities • Multiplayer bingo fun</p>
   </footer>
 </div>

@@ -185,7 +185,8 @@ export async function getGame(gameId: string): Promise<GameWithRelations> {
 export async function updateParticipantScore(
   gameId: string,
   userId: string,
-  completedCells: number[]
+  completedCells: number[],
+  photoUrls?: string[]
 ): Promise<GameParticipantWithUser> {
   const response = await fetch(`/api/games/${gameId}`, {
     method: "PUT",
@@ -195,6 +196,7 @@ export async function updateParticipantScore(
     body: JSON.stringify({
       userId,
       completedCells,
+      photoUrls,
     }),
   });
 
@@ -376,7 +378,8 @@ export async function joinGameAsGuest(
 export async function updateGuestParticipantScore(
   gameId: string,
   guestId: string,
-  completedCells: number[]
+  completedCells: number[],
+  photoUrls?: string[]
 ): Promise<GuestParticipant> {
   const response = await fetch(`/api/games/published/${gameId}/score`, {
     method: "PUT",
@@ -386,12 +389,39 @@ export async function updateGuestParticipantScore(
     body: JSON.stringify({
       guestId,
       completedCells,
+      photoUrls,
     }),
   });
 
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || "Failed to update guest score");
+  }
+
+  return response.json();
+}
+
+export async function uploadCellPhoto(
+  gameId: string,
+  participantId: string,
+  cellIndex: number,
+  isGuest: boolean = false
+): Promise<{ success: boolean; photoUrl?: string; error?: string }> {
+  const response = await fetch(`/api/games/${gameId}/photos`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      participantId,
+      cellIndex,
+      isGuest,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to upload photo");
   }
 
   return response.json();

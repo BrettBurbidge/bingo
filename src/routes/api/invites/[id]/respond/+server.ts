@@ -17,7 +17,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
     });
 
     // If accepted, add user to game participants
-    if (status === "ACCEPTED") {
+    if (status === "ACCEPTED" && invite.userId) {
       await prisma.gameParticipant.create({
         data: {
           gameId: invite.gameId,

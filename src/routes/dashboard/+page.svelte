@@ -112,7 +112,7 @@
 </script>
 
 <svelte:head>
-  <title>Dashboard - Cruise Bingo</title>
+  <title>Dashboard - Bingo</title>
 </svelte:head>
 
 {#if loading}

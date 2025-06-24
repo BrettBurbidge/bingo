@@ -1,5 +1,6 @@
 import { json } from "@sveltejs/kit";
 import { prisma } from "$lib/prisma";
+import { calculateScore } from "$lib/scoring";
 import type { RequestHandler } from "./$types";
 
 export const GET: RequestHandler = async ({ params }) => {
@@ -34,17 +35,84 @@ export const GET: RequestHandler = async ({ params }) => {
 export const PUT: RequestHandler = async ({ request, params }) => {
   try {
     const gameId = params.id;
-    const { userId, completedCells } = await request.json();
+    const { userId, completedCells, photoUrls } = await request.json();
 
     if (!userId || !Array.isArray(completedCells)) {
       return json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Calculate score (number of completed cells)
-    const score = completedCells.length;
+    // Get the game to access special squares and history
+    const game = await prisma.game.findUnique({
+      where: { id: gameId },
+    });
+
+    if (!game) {
+      return json({ error: "Game not found" }, { status: 404 });
+    }
+
+    // Get current participant to check for new squares
+    const currentParticipant = await prisma.gameParticipant.findUnique({
+      where: {
+        gameId_userId: {
+          gameId,
+          userId,
+        },
+      },
+    });
+
+    if (!currentParticipant) {
+      return json({ error: "Participant not found" }, { status: 404 });
+    }
+
+    // Update mark history for first-to-mark bonus tracking
+    const newSquares = completedCells.filter(
+      (cell) => !currentParticipant.completedCells.includes(cell)
+    );
+    let updatedMarkHistory = [...(game.squareMarkHistory as any[])];
+
+    for (const newSquare of newSquares) {
+      const existingHistory = updatedMarkHistory.find(
+        (h: any) => h.cellIndex === newSquare
+      );
+      if (!existingHistory) {
+        updatedMarkHistory.push({
+          cellIndex: newSquare,
+          firstParticipantId: currentParticipant.id,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+
+    // Update game mark history
+    await prisma.game.update({
+      where: { id: gameId },
+      data: {
+        squareMarkHistory: updatedMarkHistory,
+      },
+    });
+
+    // Calculate advanced score using new scoring system
+    const gameWithHistory = { ...game, squareMarkHistory: updatedMarkHistory };
+    const { score, breakdown } = calculateScore(
+      completedCells,
+      gameWithHistory,
+      currentParticipant.id
+    );
 
     // Check for win condition (5 in a row)
     const hasWon = checkForWin(completedCells);
+
+    const updateData: any = {
+      completedCells,
+      score,
+      scoreBreakdown: breakdown,
+      hasWon,
+    };
+
+    // Include photoUrls if provided
+    if (photoUrls && Array.isArray(photoUrls)) {
+      updateData.photoUrls = photoUrls;
+    }
 
     const participant = await prisma.gameParticipant.update({
       where: {
@@ -53,11 +121,7 @@ export const PUT: RequestHandler = async ({ request, params }) => {
           userId,
         },
       },
-      data: {
-        completedCells,
-        score,
-        hasWon,
-      },
+      data: updateData,
       include: {
         user: true,
       },
