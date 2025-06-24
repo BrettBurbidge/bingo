@@ -4,6 +4,7 @@ import { supabase } from "./supabase";
 import { browser } from "$app/environment";
 
 export const user = writable<User | null>(null);
+export const emailVerified = writable<boolean>(false);
 
 export async function signUp(
   email: string,
@@ -45,16 +46,33 @@ export async function signOut() {
   if (error) throw error;
 }
 
+export async function resendVerification(email: string) {
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email: email,
+  });
+
+  if (error) throw error;
+  return true;
+}
+
 export function initAuth() {
   if (!browser) return;
 
   // Get initial session
   supabase.auth.getSession().then(({ data: { session } }) => {
     user.set(session?.user ?? null);
+    emailVerified.set(session?.user?.email_confirmed_at ? true : false);
   });
 
   // Listen for auth changes
   supabase.auth.onAuthStateChange(async (event, session) => {
     user.set(session?.user ?? null);
+    emailVerified.set(session?.user?.email_confirmed_at ? true : false);
+
+    // Handle email confirmation
+    if (event === "SIGNED_IN" && session?.user?.email_confirmed_at) {
+      emailVerified.set(true);
+    }
   });
 }

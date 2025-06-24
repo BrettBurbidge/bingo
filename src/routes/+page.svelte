@@ -17,6 +17,7 @@
   let loading = false;
   let error = "";
   let inviteToken = "";
+  let signupSuccess = false;
 
   $: inviteToken = $page.url.searchParams.get('invite') || '';
 
@@ -46,12 +47,18 @@
   async function handleSubmit() {
     loading = true;
     error = "";
+    signupSuccess = false;
 
     try {
       if (isLogin) {
         await signIn(email, password);
       } else {
-        await signUp(email, password, displayName);
+        const result = await signUp(email, password, displayName);
+        // Redirect to verification page if email not confirmed
+        if (!result.user?.email_confirmed_at) {
+          goto("/verify-email");
+          return;
+        }
       }
     } catch (e) {
       error = e instanceof Error ? e.message : "An error occurred";
@@ -188,7 +195,26 @@
                 />
               </div>
 
-              {#if error}
+              {#if signupSuccess}
+                <div
+                  class="p-4 rounded-md bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800"
+                >
+                  <div class="flex items-start gap-3">
+                    <div class="flex-shrink-0">
+                      <span class="text-green-600 dark:text-green-400">✅</span>
+                    </div>
+                    <div>
+                      <h4 class="text-sm font-medium text-green-800 dark:text-green-200">Account created successfully!</h4>
+                      <p class="text-sm text-green-700 dark:text-green-300 mt-1">
+                        Please check your email and click the verification link to activate your account.
+                      </p>
+                      <p class="text-xs text-green-600 dark:text-green-400 mt-2">
+                        📧 Check your spam folder if you don't see the email within a few minutes.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              {:else if error}
                 <div
                   class="p-3 rounded-md bg-destructive/15 border border-destructive/20"
                 >
