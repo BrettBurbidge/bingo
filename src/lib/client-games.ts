@@ -124,6 +124,7 @@ export async function inviteUserToGame(
 export async function setupGame(
   gameId: string,
   wordList: string[],
+  cardTypes: string[],
   gameMasterId: string
 ): Promise<Game> {
   const response = await fetch(`/api/games/${gameId}/setup`, {
@@ -133,6 +134,7 @@ export async function setupGame(
     },
     body: JSON.stringify({
       wordList,
+      cardTypes,
       gameMasterId,
     }),
   });
@@ -357,14 +359,15 @@ export async function getPublishedGame(
 
 export async function joinGameAsGuest(
   gameId: string,
-  guestName: string
+  email: string,
+  displayName?: string
 ): Promise<GuestParticipant> {
   const response = await fetch(`/api/games/published/${gameId}/join`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ guestName }),
+    body: JSON.stringify({ email, displayName }),
   });
 
   if (!response.ok) {

@@ -2,19 +2,35 @@ import { json, error } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { prisma } from "$lib/prisma";
 
-export const POST: RequestHandler = async ({ params, request }) => {
+export const POST: RequestHandler = async ({ request, params }) => {
   try {
-    const { guestName } = await request.json();
     const gameId = params.id;
 
-    if (!guestName?.trim() || !gameId) {
-      throw error(400, "Guest name and Game ID are required");
+    if (!gameId) {
+      return json({ error: "Game ID is required" }, { status: 400 });
     }
 
-    const trimmedName = guestName.trim();
+    const body = await request.json();
+    const { email, displayName } = body;
 
-    // Verify game exists and is published and active
-    const game = await prisma.game.findUnique({
+    if (!email || typeof email !== "string" || !email.trim()) {
+      return json({ error: "Email is required" }, { status: 400 });
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return json(
+        { error: "Please enter a valid email address" },
+        { status: 400 }
+      );
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+    const finalDisplayName = displayName?.trim() || trimmedEmail.split("@")[0];
+
+    // Get the published game
+    const game = await prisma.game.findFirst({
       where: {
         id: gameId,
         publishedAt: {
@@ -23,83 +39,84 @@ export const POST: RequestHandler = async ({ params, request }) => {
       },
       select: {
         id: true,
+        name: true,
         status: true,
         wordList: true,
+        cardTypes: true,
       },
     });
 
     if (!game) {
-      throw error(404, "Published game not found");
+      return json({ error: "Published game not found" }, { status: 404 });
     }
 
-    if (game.status === "SETUP") {
-      throw error(400, "Game is not yet available");
+    if (game.status !== "ACTIVE") {
+      return json({ error: "Game is not active" }, { status: 400 });
     }
 
-    if (game.status === "COMPLETED") {
-      throw error(400, "Game has ended - no new players can join");
-    }
-
-    // Check if guest name is already taken in this game
-    const existingGuest = await prisma.guestParticipant.findUnique({
+    // Check if guest already exists
+    const existingGuest = await prisma.guestParticipant.findFirst({
       where: {
-        gameId_guestName: {
-          gameId: gameId,
-          guestName: trimmedName,
-        },
+        gameId: gameId,
+        email: trimmedEmail,
       },
     });
 
     if (existingGuest) {
-      throw error(409, "Name is already taken in this game");
-    }
-
-    // Check if authenticated user with same display name exists
-    const authParticipants = await prisma.gameParticipant.findMany({
-      where: { gameId },
-      include: {
-        user: {
-          select: {
-            displayName: true,
-            email: true,
-          },
-        },
-      },
-    });
-
-    const nameTaken = authParticipants.some(
-      (p) =>
-        p.user.displayName?.toLowerCase() === trimmedName.toLowerCase() ||
-        p.user.email?.split("@")[0].toLowerCase() === trimmedName.toLowerCase()
-    );
-
-    if (nameTaken) {
-      throw error(409, "Name is already taken in this game");
+      // Return existing guest (allows rejoining from different devices)
+      return json(existingGuest);
     }
 
     // Generate random bingo board from game's word list
-    function generateBingoBoard(wordList: string[]): string[] {
+    function generateBingoBoard(
+      wordList: string[],
+      cardTypes: string[]
+    ): { boardData: string[]; cardTypeData: string[] } {
       if (wordList.length < 24) {
         throw new Error("Word list must contain at least 24 words");
       }
 
-      const shuffled = [...wordList].sort(() => 0.5 - Math.random());
-      const board = shuffled.slice(0, 24);
+      // Create combined array of words and their types
+      const combined = wordList.map((word, index) => ({
+        word,
+        type: cardTypes[index] || "see", // Default to "see" if no type specified
+      }));
+
+      const shuffled = [...combined].sort(() => 0.5 - Math.random());
+      const words = shuffled.slice(0, 24);
+
+      // Create board data and card type data
+      const boardData: string[] = [];
+      const cardTypeData: string[] = [];
 
       // Insert "FREE" at position 12 (center)
-      board.splice(12, 0, "FREE");
+      for (let i = 0; i < 25; i++) {
+        if (i === 12) {
+          boardData[i] = "FREE";
+          cardTypeData[i] = "free";
+        } else {
+          const wordIndex = i < 12 ? i : i - 1;
+          boardData[i] = words[wordIndex].word;
+          cardTypeData[i] = words[wordIndex].type;
+        }
+      }
 
-      return board;
+      return { boardData, cardTypeData };
     }
 
-    const boardData = generateBingoBoard(game.wordList);
+    const { boardData, cardTypeData } = generateBingoBoard(
+      game.wordList,
+      game.cardTypes || []
+    );
 
     // Create guest participant
     const guestParticipant = await prisma.guestParticipant.create({
       data: {
         gameId: gameId,
-        guestName: trimmedName,
+        email: trimmedEmail,
+        guestName: finalDisplayName,
         boardData: boardData,
+        cardTypeData: cardTypeData,
         completedCells: [12], // Center cell is always completed
         score: 1, // Starting score for FREE space
       },

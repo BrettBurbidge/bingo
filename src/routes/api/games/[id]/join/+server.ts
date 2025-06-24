@@ -107,81 +107,87 @@ export const POST: RequestHandler = async ({ request, params, cookies }) => {
     }
 
     // Generate randomized board for this participant
-    const participantBoard = generateRandomizedBoard(game.wordList);
+    const { boardData, cardTypeData } = generateRandomizedBoard(
+      game.wordList,
+      game.cardTypes || []
+    );
 
     // Add participant
     console.log(
       `👥 Creating game participant for game: ${gameId}, user: ${userId}`
     );
 
-    try {
-      const participant = await prisma.gameParticipant.create({
-        data: {
-          gameId,
-          userId,
-          boardData: participantBoard,
-          completedCells: [12], // Center cell starts completed
-        },
-        include: {
-          user: true,
-        },
-      });
+    const participant = await prisma.gameParticipant.create({
+      data: {
+        gameId,
+        userId,
+        boardData: boardData,
+        cardTypeData: cardTypeData,
+        completedCells: [12], // Center cell starts completed
+      },
+      include: {
+        user: true,
+      },
+    });
 
-      console.log(`✅ Created game participant for user: ${userId}`);
+    // Update invite status if this user was invited
+    const updatedInvites = await prisma.gameInvite.updateMany({
+      where: {
+        gameId,
+        email: profile.email,
+        status: "PENDING",
+      },
+      data: {
+        status: "ACCEPTED",
+        userId: userId,
+      },
+    });
 
-      // Update invite status if this user was invited
-      const updatedInvites = await prisma.gameInvite.updateMany({
-        where: {
-          gameId,
-          email: profile.email,
-          status: "PENDING",
-        },
-        data: {
-          status: "ACCEPTED",
-          userId: userId,
-        },
-      });
-
-      if (updatedInvites.count > 0) {
-        console.log(
-          `✅ Updated ${updatedInvites.count} invite(s) to ACCEPTED for ${profile.email}`
-        );
-      }
-
+    if (updatedInvites.count > 0) {
       console.log(
-        `✅ User ${profile.email} successfully joined game: ${game.name}`
-      );
-
-      return json(participant);
-    } catch (participantError) {
-      console.error(`❌ Failed to create game participant:`, participantError);
-      return json(
-        { error: "Failed to join game - participant creation failed" },
-        { status: 500 }
+        `✅ Updated ${updatedInvites.count} invite(s) to ACCEPTED for ${profile.email}`
       );
     }
+
+    console.log(
+      `✅ User ${profile.email} successfully joined game: ${game.name}`
+    );
+
+    return json(participant);
   } catch (error) {
     console.error("Error joining game:", error);
     return json({ error: "Failed to join game" }, { status: 500 });
   }
 };
 
-function generateRandomizedBoard(wordList: string[]): string[] {
-  // Shuffle the word list
-  const shuffled = [...wordList].sort(() => Math.random() - 0.5);
+function generateRandomizedBoard(
+  wordList: string[],
+  cardTypes: string[]
+): { boardData: string[]; cardTypeData: string[] } {
+  // Create combined array of words and their types
+  const combined = wordList.map((word, index) => ({
+    word,
+    type: cardTypes[index] || "see", // Default to "see" if no type specified
+  }));
+
+  // Shuffle the combined array
+  const shuffled = [...combined].sort(() => Math.random() - 0.5);
 
   // Create 25-cell board with FREE SPACE in center (index 12)
-  const board: string[] = [];
+  const boardData: string[] = [];
+  const cardTypeData: string[] = [];
   let wordIndex = 0;
 
   for (let i = 0; i < 25; i++) {
     if (i === 12) {
-      board[i] = "FREE SPACE";
+      boardData[i] = "FREE SPACE";
+      cardTypeData[i] = "free"; // Special type for free space
     } else {
-      board[i] = shuffled[wordIndex];
+      boardData[i] = shuffled[wordIndex].word;
+      cardTypeData[i] = shuffled[wordIndex].type;
       wordIndex++;
     }
   }
 
-  return board;
+  return { boardData, cardTypeData };
 }

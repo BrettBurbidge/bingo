@@ -32,6 +32,7 @@ model Game {
   status            GameStatus         @default(SETUP)
   winnerId          String?            @map("winner_id") @db.Uuid
   wordList          String[]           @default([]) @map("word_list")
+  cardTypes         String[]           @default([]) @map("card_types") // "see" or "action" for each word
   publishedAt       DateTime?          @map("published_at") @db.Timestamptz(6)
   bonusSquare       Int?               @map("bonus_square") // Random square for first-to-mark bonus
   wildcardSquare    Int?               @map("wildcard_square") // Random wildcard square with 2x multiplier
@@ -54,6 +55,7 @@ model GameParticipant {
   scoreBreakdown Json[]   @default([]) @map("score_breakdown") // Track how points were earned
   joinedAt       DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
   boardData      String[] @default([]) @map("board_data")
+  cardTypeData   String[] @default([]) @map("card_type_data") // "see" or "action" for each board position
   photoUrls      String[] @default([]) @map("photo_urls")
   hasWon         Boolean  @default(false) @map("has_won")
   game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
@@ -66,17 +68,19 @@ model GameParticipant {
 model GuestParticipant {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   gameId         String   @map("game_id") @db.Uuid
-  guestName      String   @map("guest_name")
+  email          String   @default("") @map("email")
+  guestName      String?  @map("guest_name") // Optional display name
   completedCells Int[]    @default([12]) @map("completed_cells")
   score          Int      @default(1)
   scoreBreakdown Json[]   @default([]) @map("score_breakdown") // Track how points were earned
   joinedAt       DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
   boardData      String[] @default([]) @map("board_data")
+  cardTypeData   String[] @default([]) @map("card_type_data") // "see" or "action" for each board position
   photoUrls      String[] @default([]) @map("photo_urls")
   hasWon         Boolean  @default(false) @map("has_won")
   game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
 
-  @@unique([gameId, guestName])
+  @@unique([gameId, email])
   @@map("guest_participants")
 }
 

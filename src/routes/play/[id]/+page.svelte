@@ -34,7 +34,8 @@
   let loading = true;
   let showJoinModal = true;
   let joinLoading = false;
-  let guestName = "";
+  let guestEmail = "";
+  let guestDisplayName = "";
   let joinError = "";
   let showCameraModal = false;
   let selectedCellIndex = -1;
@@ -72,7 +73,7 @@
 
       const guestParticipants: AllParticipants[] = gameData.guestParticipants.map(p => ({
         id: p.id,
-        name: p.guestName,
+        name: p.guestName || p.email.split('@')[0] || 'Guest',
         score: p.score,
         hasWon: p.hasWon,
         isGuest: true
@@ -81,15 +82,15 @@
       allParticipants = [...authParticipants, ...guestParticipants];
 
       // Check if user is already joined (using localStorage to remember)
-      const savedGuestId = localStorage.getItem(`guest-${gameId}`);
-      if (savedGuestId) {
-        const existingGuest = gameData.guestParticipants.find(p => p.id === savedGuestId);
+      const savedGuestEmail = localStorage.getItem(`guest-email-${gameId}`);
+      if (savedGuestEmail) {
+        const existingGuest = gameData.guestParticipants.find(p => p.email === savedGuestEmail);
         if (existingGuest) {
           guestParticipant = existingGuest;
           showJoinModal = false;
         } else {
           // Guest was removed, clear localStorage
-          localStorage.removeItem(`guest-${gameId}`);
+          localStorage.removeItem(`guest-email-${gameId}`);
         }
       }
 
@@ -105,8 +106,15 @@
   }
 
   async function handleJoinGame() {
-    if (!guestName.trim()) {
-      joinError = "Please enter a name";
+    if (!guestEmail.trim()) {
+      joinError = "Please enter your email address";
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(guestEmail.trim())) {
+      joinError = "Please enter a valid email address";
       return;
     }
 
@@ -114,11 +122,12 @@
       joinLoading = true;
       joinError = "";
       
-      const newGuest = await joinGameAsGuest(gameId, guestName.trim());
+      const displayName = guestDisplayName.trim() || guestEmail.split('@')[0];
+      const newGuest = await joinGameAsGuest(gameId, guestEmail.trim(), displayName);
       guestParticipant = newGuest;
       
-      // Save guest ID to localStorage
-      localStorage.setItem(`guest-${gameId}`, newGuest.id);
+      // Save guest email to localStorage for easier rejoining
+      localStorage.setItem(`guest-email-${gameId}`, guestEmail.trim());
       
       showJoinModal = false;
       await loadGameData();
@@ -391,6 +400,49 @@
     return "";
   }
 
+  function getCellCardType(row: number, col: number): string {
+    const cellIndex = row * 5 + col;
+    
+    // If user is joined, show their card types
+    if (guestParticipant?.cardTypeData) {
+      return guestParticipant.cardTypeData[cellIndex] || "see";
+    }
+    
+    // For non-participants viewing completed games, show the winner's card types if available
+    if (game?.status === "COMPLETED") {
+      // Try to find winner among authenticated participants first
+      const authWinner = game.participants.find(p => p.hasWon);
+      if (authWinner?.cardTypeData) {
+        return authWinner.cardTypeData[cellIndex] || "see";
+      }
+      
+      // Then try guest participants
+      const guestWinner = game.guestParticipants.find(p => p.hasWon);
+      if (guestWinner?.cardTypeData) {
+        return guestWinner.cardTypeData[cellIndex] || "see";
+      }
+      
+      // Fallback to first participant's card types
+      if (game.participants[0]?.cardTypeData) {
+        return game.participants[0].cardTypeData[cellIndex] || "see";
+      }
+      if (game.guestParticipants[0]?.cardTypeData) {
+        return game.guestParticipants[0].cardTypeData[cellIndex] || "see";
+      }
+    }
+    
+    return "see";
+  }
+
+  function getCardTypeIcon(cardType: string): string {
+    switch (cardType) {
+      case "see": return "👁️";
+      case "action": return "⚡";
+      case "free": return "🎯";
+      default: return "👁️";
+    }
+  }
+
   function isCellCompleted(row: number, col: number): boolean {
     const cellIndex = row * 5 + col;
     
@@ -488,16 +540,22 @@
     <Dialog.Header>
       <Dialog.Title>Join {game?.name || "Bingo Game"}</Dialog.Title>
       <Dialog.Description>
-        Enter your name to join this game. Your name must be unique in this game.
+        Enter your email and optional display name to join this game. Your email must be unique in this game.
       </Dialog.Description>
     </Dialog.Header>
     <div class="space-y-4">
       <div class="space-y-2">
-        <Label for="guest-name">Your Name</Label>
+        <Label for="guest-email">Email</Label>
         <Input
-          id="guest-name"
-          bind:value={guestName}
-          placeholder="Enter your name"
+          id="guest-email"
+          bind:value={guestEmail}
+          placeholder="Enter your email"
+        />
+        <Label for="guest-display-name">Display Name (Optional)</Label>
+        <Input
+          id="guest-display-name"
+          bind:value={guestDisplayName}
+          placeholder="Optional - will use email name if empty"
         />
         {#if joinError}
           <p class="text-sm text-red-500">{joinError}</p>
@@ -507,7 +565,7 @@
     <Dialog.Footer>
       <Button 
         on:click={handleJoinGame} 
-        disabled={joinLoading || !guestName.trim()}
+        disabled={joinLoading || !guestEmail.trim()}
         class="w-full"
       >
         {#if joinLoading}
@@ -664,6 +722,8 @@
                   {@const photoUrl = getCellPhotoUrl(row, col)}
                   {@const isBonus = isBonusSquare(row, col)}
                   {@const isWildcard = isWildcardSquare(row, col)}
+                  {@const cardType = getCellCardType(row, col)}
+                  {@const cardTypeIcon = getCardTypeIcon(cardType)}
                   <button
                                           class="p-1 text-[10px] font-medium border-2 rounded-lg transition-colors min-h-[70px] active:scale-95 flex flex-col items-center justify-center relative overflow-hidden
                         {isCompleted
@@ -677,14 +737,21 @@
                     disabled={isCenter}
                   
                   >
-                                          {#if photoUrl}
+                    <!-- Card Type Icon in top left -->
+                    {#if !isCenter}
+                      <div class="absolute top-1 left-1 text-sm font-black z-20 {isCompleted ? 'text-yellow-300 opacity-100 drop-shadow-[0_2px_4px_rgba(0,0,0,1)] filter brightness-125' : 'text-gray-600 opacity-80'}">
+                        {cardTypeIcon}
+                      </div>
+                    {/if}
+                    
+                    {#if photoUrl}
                         <img 
                           src={photoUrl} 
                           alt="Proof photo" 
                           class="absolute inset-0 w-full h-full object-cover rounded-md"
                         />
                         <div class="absolute inset-0 bg-black bg-opacity-30 rounded-md"></div>
-                        <span class="relative z-10 text-white text-shadow font-bold leading-tight break-words text-center hyphens-auto max-w-full">
+                        <span class="relative z-10 text-white text-shadow font-bold leading-tight break-words text-center hyphens-auto max-w-full {!isCenter ? 'mt-2' : ''}">
                           {getCellContent(row, col)}
                         </span>
                         {#if isCompleted}
@@ -697,7 +764,7 @@
                           <div class="absolute bottom-1 right-1 text-xs">🃏</div>
                         {/if}
                       {:else}
-                        <span class="block leading-tight break-words text-center hyphens-auto max-w-full">
+                        <span class="block leading-tight break-words text-center hyphens-auto max-w-full {!isCenter ? 'mt-2' : ''}">
                           {getCellContent(row, col)}
                         </span>
                         {#if isBonus}
@@ -839,6 +906,8 @@
                       {@const photoUrl = getCellPhotoUrl(row, col)}
                       {@const isBonus = isBonusSquare(row, col)}
                       {@const isWildcard = isWildcardSquare(row, col)}
+                      {@const cardType = getCellCardType(row, col)}
+                      {@const cardTypeIcon = getCardTypeIcon(cardType)}
                       <button
                         class="aspect-square p-3 text-sm font-medium border-2 rounded-lg transition-colors hover:scale-105 relative overflow-hidden flex flex-col items-center justify-center
                           {isCompleted
@@ -851,6 +920,13 @@
                         on:click={() => handleCellClick(row * 5 + col)}
                         disabled={isCenter}
                       >
+                        <!-- Card Type Icon in top left -->
+                        {#if !isCenter}
+                          <div class="absolute top-2 left-2 text-lg font-black z-20 {isCompleted ? 'text-yellow-300 opacity-100 drop-shadow-[0_2px_4px_rgba(0,0,0,1)] filter brightness-125' : 'text-gray-600 opacity-80'}">
+                            {cardTypeIcon}
+                          </div>
+                        {/if}
+                        
                         {#if photoUrl}
                           <img 
                             src={photoUrl} 
@@ -858,7 +934,7 @@
                             class="absolute inset-0 w-full h-full object-cover rounded-md"
                           />
                           <div class="absolute inset-0 bg-black bg-opacity-30 rounded-md"></div>
-                          <span class="relative z-10 text-white text-shadow font-bold leading-tight text-center">
+                          <span class="relative z-10 text-white text-shadow font-bold leading-tight text-center {!isCenter ? 'mt-4' : ''}">
                             {getCellContent(row, col)}
                           </span>
                           {#if isCompleted}
@@ -871,7 +947,7 @@
                             <div class="absolute bottom-2 right-2 text-sm">🃏</div>
                           {/if}
                         {:else}
-                          <span class="block leading-tight text-center">
+                          <span class="block leading-tight text-center {!isCenter ? 'mt-4' : ''}">
                             {getCellContent(row, col)}
                           </span>
                           {#if isBonus}

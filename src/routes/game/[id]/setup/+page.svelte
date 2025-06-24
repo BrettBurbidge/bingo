@@ -14,8 +14,13 @@
   let loading = true;
   let submitting = false;
   let words: string[] = Array(24).fill("");
+  let cardTypes: string[] = Array(24).fill("see"); // Default to "see" type
 
   $: gameId = $page.params.id;
+
+  function updateCardType(index: number, type: string) {
+    cardTypes = cardTypes.map((currentType, i) => i === index ? type : currentType);
+  }
 
   onMount(async () => {
     if ($user && gameId) {
@@ -59,7 +64,7 @@
 
     try {
       submitting = true;
-      await setupGame(gameId, filledWords, $user.id);
+      await setupGame(gameId, filledWords, cardTypes, $user.id);
       goto(`/game/${gameId}`);
     } catch (error) {
       console.error("Error setting up game:", error);
@@ -96,7 +101,34 @@
       "Room upgrade",
       "Lost luggage",
     ];
+    const sampleTypes = [
+      "see",      // See a dolphin
+      "action",   // Pool game
+      "action",   // Formal dinner
+      "action",   // Deck party
+      "action",   // Spa visit
+      "action",   // Karaoke night
+      "action",   // Buffet meal
+      "action",   // Sunset photo
+      "see",      // New friend
+      "action",   // Room service
+      "action",   // Dancing
+      "action",   // Shore excursion
+      "action",   // Mini golf
+      "action",   // Art auction
+      "action",   // Trivia night
+      "see",      // Ocean view
+      "action",   // Captain's dinner
+      "action",   // Live show
+      "action",   // Gym workout
+      "action",   // Wine tasting
+      "see",      // Seasick
+      "action",   // Late checkout
+      "see",      // Room upgrade
+      "see",      // Lost luggage
+    ];
     words = [...sampleWords];
+    cardTypes = [...sampleTypes];
   }
 </script>
 
@@ -144,21 +176,81 @@
         <Card.Title>Bingo Words & Phrases</Card.Title>
         <Card.Description>
           Each player will get a randomized board with these 24 items plus a
-          FREE SPACE in the center. The first player to get 5 in a row
-          (horizontal, vertical, or diagonal) wins!
+          FREE SPACE in the center. Choose whether each item is something to "see" or an "action" to do.
         </Card.Description>
       </Card.Header>
       <Card.Content class="space-y-6">
-        <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <!-- Card Type Legend -->
+        <div class="flex gap-4 p-4 bg-muted rounded-lg">
+          <div class="flex items-center gap-2">
+            <div class="flex items-center justify-center w-6 h-6 bg-blue-100 dark:bg-blue-900 rounded text-blue-600 dark:text-blue-400 text-sm">
+              👁️
+            </div>
+            <span class="text-sm font-medium">See</span>
+            <span class="text-sm text-muted-foreground">- Something to spot or observe</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="flex items-center justify-center w-6 h-6 bg-green-100 dark:bg-green-900 rounded text-green-600 dark:text-green-400 text-sm">
+              ⚡
+            </div>
+            <span class="text-sm font-medium">Action</span>
+            <span class="text-sm text-muted-foreground">- Something to do or participate in</span>
+          </div>
+        </div>
+
+        <div class="grid gap-6 sm:grid-cols-1 lg:grid-cols-2">
           {#each words as word, index}
-            <div class="space-y-2">
-              <label for={`word-${index}`} class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50">Word {index + 1}</label>
-              <Input
-                id={`word-${index}`}
-                bind:value={words[index]}
-                placeholder="Enter word or phrase..."
-                maxlength="50"
-              />
+            <div class="space-y-3 p-4 border rounded-lg">
+              <div class="space-y-2">
+                <label for={`word-${index}`} class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Item {index + 1}
+                </label>
+                <Input
+                  id={`word-${index}`}
+                  bind:value={words[index]}
+                  placeholder="Enter word or phrase..."
+                  maxlength="50"
+                />
+              </div>
+              
+              <div class="space-y-2">
+                <label class="text-sm font-medium">Card Type</label>
+                <div class="flex gap-4">
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name={`card-type-${index}`}
+                      value="see"
+                      checked={cardTypes[index] === 'see'}
+                      on:change={() => updateCardType(index, 'see')}
+                      class="sr-only"
+                    />
+                    <div class="flex items-center gap-2 px-3 py-2 rounded-md border-2 transition-all {cardTypes[index] === 'see' ? 'border-blue-500 bg-blue-50 dark:bg-blue-950' : 'border-gray-200 hover:border-blue-300'}">
+                      <div class="flex items-center justify-center w-5 h-5 bg-blue-100 dark:bg-blue-900 rounded text-blue-600 dark:text-blue-400 text-xs">
+                        👁️
+                      </div>
+                      <span class="text-sm font-medium">See</span>
+                    </div>
+                  </label>
+                  
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name={`card-type-${index}`}
+                      value="action"
+                      checked={cardTypes[index] === 'action'}
+                      on:change={() => updateCardType(index, 'action')}
+                      class="sr-only"
+                    />
+                    <div class="flex items-center gap-2 px-3 py-2 rounded-md border-2 transition-all {cardTypes[index] === 'action' ? 'border-green-500 bg-green-50 dark:bg-green-950' : 'border-gray-200 hover:border-green-300'}">
+                      <div class="flex items-center justify-center w-5 h-5 bg-green-100 dark:bg-green-900 rounded text-green-600 dark:text-green-400 text-xs">
+                        ⚡
+                      </div>
+                      <span class="text-sm font-medium">Action</span>
+                    </div>
+                  </label>
+                </div>
+              </div>
             </div>
           {/each}
         </div>
@@ -166,7 +258,10 @@
         <div class="flex justify-end space-x-2">
           <Button
             variant="outline"
-            on:click={() => (words = Array(24).fill(""))}
+            on:click={() => {
+              words = Array(24).fill("");
+              cardTypes = Array(24).fill("see");
+            }}
           >
             Clear All
           </Button>

@@ -283,6 +283,21 @@
     return userParticipant.boardData[cellIndex] || "";
   }
 
+  function getCellCardType(row: number, col: number): string {
+    if (!userParticipant?.cardTypeData) return "see";
+    const cellIndex = row * 5 + col;
+    return userParticipant.cardTypeData[cellIndex] || "see";
+  }
+
+  function getCardTypeIcon(cardType: string): string {
+    switch (cardType) {
+      case "see": return "👁️";
+      case "action": return "⚡";
+      case "free": return "🎯";
+      default: return "👁️";
+    }
+  }
+
   function isCellCompleted(row: number, col: number): boolean {
     if (!userParticipant) return false;
     const cellIndex = row * 5 + col;
@@ -485,18 +500,29 @@
                   {@const isCompleted = isCellCompleted(row, col)}
                   {@const isCenter = isCenterCell(row, col)}
                   {@const content = getCellContent(row, col)}
+                  {@const cardType = getCellCardType(row, col)}
+                  {@const cardTypeIcon = getCardTypeIcon(cardType)}
 
                   <button
-                    class="border-2 p-1 text-[10px] font-medium rounded-lg transition-all duration-200 flex items-center justify-center text-center leading-tight min-h-[70px] active:scale-95
+                    class="border-2 p-1 text-[10px] font-medium rounded-lg transition-all duration-200 flex items-center justify-center text-center leading-tight min-h-[70px] active:scale-95 relative
                       {isCompleted || isCenter
                       ? 'bg-primary text-primary-foreground border-primary shadow-md'
                       : 'bg-card border-border active:bg-accent'}"
                     on:click={() => toggleCell(cellIndex)}
                     disabled={isCenter}
                   >
-                    <span class="break-words hyphens-auto text-center leading-tight max-w-full">
+                    <!-- Card Type Icon in top left -->
+                    {#if !isCenter}
+                      <div class="absolute top-1 left-1 text-[8px] {isCompleted ? 'opacity-90 text-white drop-shadow-sm' : 'opacity-70'}">
+                        {cardTypeIcon}
+                      </div>
+                    {/if}
+                    
+                    <!-- Main content -->
+                    <span class="break-words hyphens-auto text-center leading-tight max-w-full {!isCenter ? 'mt-2' : ''}">
                       {content}
                     </span>
+                    
                     {#if isCenter}
                       <div class="absolute inset-0 flex items-center justify-center">
                         <Badge variant="secondary" class="text-xs px-1 py-0">FREE</Badge>
@@ -578,16 +604,29 @@
                       {@const isCompleted = isCellCompleted(row, col)}
                       {@const isCenter = isCenterCell(row, col)}
                       {@const content = getCellContent(row, col)}
+                      {@const cardType = getCellCardType(row, col)}
+                      {@const cardTypeIcon = getCardTypeIcon(cardType)}
 
                       <button
-                        class="aspect-square border-2 p-2 text-xs font-medium rounded-lg transition-all duration-200 flex items-center justify-center text-center leading-tight
+                        class="border-2 p-1 text-[10px] font-medium rounded-lg transition-all duration-200 flex items-center justify-center text-center leading-tight min-h-[70px] active:scale-95 relative
                           {isCompleted || isCenter
-                          ? 'bg-primary text-primary-foreground border-primary shadow-md transform scale-105'
-                          : 'bg-card border-border hover:bg-accent hover:border-accent-foreground/20 hover:scale-105'}"
+                          ? 'bg-primary text-primary-foreground border-primary shadow-md'
+                          : 'bg-card border-border active:bg-accent'}"
                         on:click={() => toggleCell(cellIndex)}
                         disabled={isCenter}
                       >
-                        {content}
+                        <!-- Card Type Icon in top left -->
+                        {#if !isCenter}
+                          <div class="absolute top-1 left-1 text-[8px] {isCompleted ? 'opacity-90 text-white drop-shadow-sm' : 'opacity-70'}">
+                            {cardTypeIcon}
+                          </div>
+                        {/if}
+                        
+                        <!-- Main content -->
+                        <span class="break-words hyphens-auto text-center leading-tight max-w-full {!isCenter ? 'mt-2' : ''}">
+                          {content}
+                        </span>
+                        
                         {#if isCenter}
                           <div class="absolute inset-0 flex items-center justify-center">
                             <Badge variant="secondary" class="text-xs px-1 py-0">FREE</Badge>
