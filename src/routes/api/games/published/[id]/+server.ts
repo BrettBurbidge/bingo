@@ -52,8 +52,9 @@ export const GET: RequestHandler = async ({ params }) => {
       throw error(404, "Published game not found");
     }
 
-    if (game.status !== "ACTIVE") {
-      throw error(400, "Game is not active");
+    // Allow access to both ACTIVE and COMPLETED games for viewing
+    if (game.status === "SETUP") {
+      throw error(400, "Game is not yet available");
     }
 
     return json(game);

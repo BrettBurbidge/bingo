@@ -430,12 +430,15 @@
               <h2
                 class="text-2xl font-bold text-yellow-800 dark:text-yellow-200"
               >
-                Game Complete!
+                We Have a Winner!
               </h2>
               <p class="text-yellow-700 dark:text-yellow-300">
                 🎉 Congratulations to <strong
                   >{game.winner.displayName || game.winner.email}</strong
-                > for winning!
+                > for getting 5 in a row first!
+              </p>
+              <p class="text-sm text-yellow-600 dark:text-yellow-400 mt-2">
+                ✨ Feel free to keep playing and complete your board!
               </p>
             </div>
           </div>
@@ -484,14 +487,14 @@
                   {@const content = getCellContent(row, col)}
 
                   <button
-                    class="aspect-square border-2 p-1 text-xs font-medium rounded-lg transition-all duration-200 flex items-center justify-center text-center leading-tight min-h-[60px]
+                    class="border-2 p-1 text-[10px] font-medium rounded-lg transition-all duration-200 flex items-center justify-center text-center leading-tight min-h-[70px] active:scale-95
                       {isCompleted || isCenter
                       ? 'bg-primary text-primary-foreground border-primary shadow-md'
-                      : 'bg-card border-border active:bg-accent active:scale-95'}"
+                      : 'bg-card border-border active:bg-accent'}"
                     on:click={() => toggleCell(cellIndex)}
                     disabled={isCenter}
                   >
-                    <span class="break-words hyphens-auto text-center leading-tight">
+                    <span class="break-words hyphens-auto text-center leading-tight max-w-full">
                       {content}
                     </span>
                     {#if isCenter}

@@ -37,8 +37,8 @@ export const PUT: RequestHandler = async ({ params, request }) => {
       throw error(400, "Game is not published");
     }
 
-    if (guestParticipant.game.status !== "ACTIVE") {
-      throw error(400, "Game is not active");
+    if (guestParticipant.game.status === "SETUP") {
+      throw error(400, "Game is not yet available");
     }
 
     // Calculate score (number of completed cells)
@@ -57,8 +57,12 @@ export const PUT: RequestHandler = async ({ params, request }) => {
       },
     });
 
-    // If this is the first person to win, mark the game as completed
-    if (hasWon && !guestParticipant.hasWon) {
+    // If this is the first person to win and game is still active, mark the game as completed
+    if (
+      hasWon &&
+      !guestParticipant.hasWon &&
+      guestParticipant.game.status === "ACTIVE"
+    ) {
       await prisma.game.update({
         where: { id: gameId },
         data: { status: "COMPLETED" },

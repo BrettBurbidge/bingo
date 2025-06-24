@@ -80,6 +80,11 @@
           localStorage.removeItem(`guest-${gameId}`);
         }
       }
+
+      // If game is completed and user hasn't joined, they can only view (no join modal)
+      if (game.status === "COMPLETED" && !guestParticipant) {
+        showJoinModal = false;
+      }
     } catch (error) {
       console.error("Error loading game data:", error);
     } finally {
@@ -119,6 +124,9 @@
 
   async function toggleCell(cellIndex: number) {
     if (!guestParticipant) return;
+    
+    // Don't allow toggling if game is completed and there's a winner (read-only mode)
+    if (game?.status === "COMPLETED" && sortedParticipants.some(p => p.hasWon)) return;
 
     // Don't allow toggling the center cell (FREE space)
     if (cellIndex === 12) return;
@@ -144,15 +152,71 @@
   }
 
   function getCellContent(row: number, col: number): string {
-    if (!guestParticipant?.boardData) return "";
     const cellIndex = row * 5 + col;
-    return guestParticipant.boardData[cellIndex] || "";
+    
+    // If user is joined, show their board
+    if (guestParticipant?.boardData) {
+      return guestParticipant.boardData[cellIndex] || "";
+    }
+    
+    // For non-participants viewing completed games, show the winner's board if available
+    if (game?.status === "COMPLETED") {
+      // Try to find winner among authenticated participants first
+      const authWinner = game.participants.find(p => p.hasWon);
+      if (authWinner?.boardData) {
+        return authWinner.boardData[cellIndex] || "";
+      }
+      
+      // Then try guest participants
+      const guestWinner = game.guestParticipants.find(p => p.hasWon);
+      if (guestWinner?.boardData) {
+        return guestWinner.boardData[cellIndex] || "";
+      }
+      
+      // Fallback to first participant's board
+      if (game.participants[0]?.boardData) {
+        return game.participants[0].boardData[cellIndex] || "";
+      }
+      if (game.guestParticipants[0]?.boardData) {
+        return game.guestParticipants[0].boardData[cellIndex] || "";
+      }
+    }
+    
+    return "";
   }
 
   function isCellCompleted(row: number, col: number): boolean {
-    if (!guestParticipant) return false;
     const cellIndex = row * 5 + col;
-    return guestParticipant.completedCells.includes(cellIndex);
+    
+    // If user is joined, show their completion status
+    if (guestParticipant) {
+      return guestParticipant.completedCells.includes(cellIndex);
+    }
+    
+    // For non-participants viewing completed games, show the winner's completion status
+    if (game?.status === "COMPLETED") {
+      // Try to find winner among authenticated participants first
+      const authWinner = game.participants.find(p => p.hasWon);
+      if (authWinner?.completedCells) {
+        return authWinner.completedCells.includes(cellIndex);
+      }
+      
+      // Then try guest participants
+      const guestWinner = game.guestParticipants.find(p => p.hasWon);
+      if (guestWinner?.completedCells) {
+        return guestWinner.completedCells.includes(cellIndex);
+      }
+      
+      // Fallback to first participant's completion status
+      if (game.participants[0]?.completedCells) {
+        return game.participants[0].completedCells.includes(cellIndex);
+      }
+      if (game.guestParticipants[0]?.completedCells) {
+        return game.guestParticipants[0].completedCells.includes(cellIndex);
+      }
+    }
+    
+    return false;
   }
 
   function isCenterCell(row: number, col: number): boolean {
@@ -265,10 +329,13 @@
               <div class="text-4xl">🏆</div>
               <div>
                 <h2 class="text-2xl font-bold text-yellow-800 dark:text-yellow-200">
-                  Game Complete!
+                  We Have a Winner!
                 </h2>
                 <p class="text-yellow-700 dark:text-yellow-300">
-                  🎉 Congratulations to <strong>{winner.name}</strong> for winning!
+                  🎉 Congratulations to <strong>{winner.name}</strong> for getting 5 in a row first!
+                </p>
+                <p class="text-sm text-yellow-600 dark:text-yellow-400 mt-2">
+                  ✨ Feel free to keep playing and complete your board!
                 </p>
               </div>
             </div>
@@ -277,7 +344,24 @@
       {/if}
     {/if}
 
-    {#if isJoined}
+    {#if !isJoined && game.status === "COMPLETED"}
+      <!-- View-only message for completed games -->
+      <Card.Root class="border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950">
+        <Card.Content class="pt-6">
+          <div class="text-center">
+            <div class="text-4xl mb-4">👀</div>
+            <h2 class="text-xl font-bold text-blue-800 dark:text-blue-200 mb-2">
+              Game Results
+            </h2>
+            <p class="text-blue-700 dark:text-blue-300">
+              This game has ended, but you can view the final results below.
+            </p>
+          </div>
+        </Card.Content>
+      </Card.Root>
+    {/if}
+
+    {#if isJoined || game.status === "COMPLETED"}
       <!-- Mobile: Bingo Board First -->
       <div class="lg:hidden">
         <!-- Mobile Stats Bar -->
@@ -285,16 +369,24 @@
           <Card.Root>
             <Card.Content class="pt-4 pb-3">
               <div class="flex items-center justify-between">
-                <div class="text-sm text-muted-foreground">Score</div>
-                <div class="text-xl font-bold">🎯 {guestParticipant?.score || 0}/25</div>
+                <div class="text-sm text-muted-foreground">
+                  {guestParticipant ? "Score" : "Top Score"}
+                </div>
+                <div class="text-xl font-bold">
+                  🎯 {guestParticipant?.score || sortedParticipants[0]?.score || 0}/25
+                </div>
               </div>
             </Card.Content>
           </Card.Root>
           <Card.Root>
             <Card.Content class="pt-4 pb-3">
               <div class="flex items-center justify-between">
-                <div class="text-sm text-muted-foreground">Rank</div>
-                <div class="text-xl font-bold">🏆 #{getUserRank(guestParticipant?.id || "")}</div>
+                <div class="text-sm text-muted-foreground">
+                  {guestParticipant ? "Rank" : "Players"}
+                </div>
+                <div class="text-xl font-bold">
+                  {guestParticipant ? `🏆 #${getUserRank(guestParticipant.id)}` : `👥 ${allParticipants.length}`}
+                </div>
               </div>
             </Card.Content>
           </Card.Root>
@@ -303,7 +395,16 @@
         <!-- Mobile Bingo Board -->
         <Card.Root class="mb-6">
           <Card.Header class="pb-3">
-            <Card.Title class="text-center text-lg">Your Bingo Board</Card.Title>
+            <Card.Title class="text-center text-lg">
+              {#if guestParticipant}
+                Your Bingo Board
+              {:else if game?.status === "COMPLETED"}
+                {@const winner = sortedParticipants.find(p => p.hasWon)}
+                {winner ? `${winner.name}'s Winning Board` : "Bingo Board"}
+              {:else}
+                Bingo Board
+              {/if}
+            </Card.Title>
           </Card.Header>
           <Card.Content class="px-2 pb-4">
             <div class="grid grid-cols-5 gap-1">
@@ -312,15 +413,16 @@
                   {@const isCompleted = isCellCompleted(row, col)}
                   {@const isCenter = isCenterCell(row, col)}
                   <button
-                    class="aspect-square p-1 text-xs font-medium border-2 rounded-lg transition-colors min-h-[60px] active:scale-95
+                    class="p-1 text-[10px] font-medium border-2 rounded-lg transition-colors min-h-[70px] active:scale-95 flex items-center justify-center
                       {isCompleted
                         ? 'bg-primary text-primary-foreground border-primary'
                         : 'bg-background hover:bg-muted border-border'}
-                      {isCenter ? 'bg-muted' : ''}"
+                      {isCenter ? 'bg-muted' : ''}
+                      {game?.status === 'COMPLETED' && sortedParticipants.some(p => p.hasWon) ? 'cursor-not-allowed opacity-75' : ''}"
                     on:click={() => toggleCell(row * 5 + col)}
-                    disabled={isCenter || game?.status === 'COMPLETED'}
+                    disabled={isCenter || (game?.status === 'COMPLETED' && sortedParticipants.some(p => p.hasWon))}
                   >
-                    <span class="block leading-tight break-words">
+                    <span class="block leading-tight break-words text-center hyphens-auto max-w-full">
                       {getCellContent(row, col)}
                     </span>
                   </button>
@@ -380,16 +482,29 @@
           <Card.Root>
             <Card.Content class="pt-6">
               <div class="flex items-center justify-between">
-                <div class="text-sm font-medium text-muted-foreground">Your Score</div>
-                <div class="text-2xl font-bold">🎯 {guestParticipant?.score || 0}/25</div>
+                <div class="text-sm font-medium text-muted-foreground">
+                  {guestParticipant ? "Your Score" : "Top Score"}
+                </div>
+                <div class="text-2xl font-bold">
+                  🎯 {guestParticipant?.score || sortedParticipants[0]?.score || 0}/25
+                </div>
               </div>
             </Card.Content>
           </Card.Root>
           <Card.Root>
             <Card.Content class="pt-6">
               <div class="flex items-center justify-between">
-                <div class="text-sm font-medium text-muted-foreground">Your Rank</div>
-                <div class="text-2xl font-bold">🏆 #{getUserRank(guestParticipant?.id || "")}</div>
+                <div class="text-sm font-medium text-muted-foreground">
+                  {guestParticipant ? "Your Rank" : "Winner"}
+                </div>
+                <div class="text-2xl font-bold">
+                  {#if guestParticipant}
+                    🏆 #{getUserRank(guestParticipant.id)}
+                  {:else}
+                    {@const winner = sortedParticipants.find(p => p.hasWon)}
+                    {winner ? `🏆 ${winner.name}` : '🏆 N/A'}
+                  {/if}
+                </div>
               </div>
             </Card.Content>
           </Card.Root>
@@ -419,7 +534,16 @@
           <div class="lg:col-span-2">
             <Card.Root>
               <Card.Header>
-                <Card.Title>Your Bingo Board</Card.Title>
+                <Card.Title>
+                  {#if guestParticipant}
+                    Your Bingo Board
+                  {:else if game?.status === "COMPLETED"}
+                    {@const winner = sortedParticipants.find(p => p.hasWon)}
+                    {winner ? `${winner.name}'s Winning Board` : "Bingo Board"}
+                  {:else}
+                    Bingo Board
+                  {/if}
+                </Card.Title>
               </Card.Header>
               <Card.Content>
                 <div class="grid grid-cols-5 gap-3">
@@ -432,9 +556,10 @@
                           {isCompleted
                             ? 'bg-primary text-primary-foreground border-primary'
                             : 'bg-background hover:bg-muted border-border'}
-                          {isCenter ? 'bg-muted' : ''}"
+                          {isCenter ? 'bg-muted' : ''}
+                          {game?.status === 'COMPLETED' && sortedParticipants.some(p => p.hasWon) ? 'cursor-not-allowed opacity-75' : ''}"
                         on:click={() => toggleCell(row * 5 + col)}
-                        disabled={isCenter || game?.status === 'COMPLETED'}
+                        disabled={isCenter || (game?.status === 'COMPLETED' && sortedParticipants.some(p => p.hasWon))}
                       >
                         <span class="block leading-tight">
                           {getCellContent(row, col)}

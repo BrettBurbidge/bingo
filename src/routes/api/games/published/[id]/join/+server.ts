@@ -32,8 +32,12 @@ export const POST: RequestHandler = async ({ params, request }) => {
       throw error(404, "Published game not found");
     }
 
-    if (game.status !== "ACTIVE") {
-      throw error(400, "Game is not active");
+    if (game.status === "SETUP") {
+      throw error(400, "Game is not yet available");
+    }
+
+    if (game.status === "COMPLETED") {
+      throw error(400, "Game has ended - no new players can join");
     }
 
     // Check if guest name is already taken in this game

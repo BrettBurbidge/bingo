@@ -6,6 +6,7 @@
     getUserInvites,
     createGame,
     respondToInvite,
+    deleteGame,
   } from "$lib/client-games";
   import Button from "$lib/components/ui/button.svelte";
   import * as Card from "$lib/components/ui/card";
@@ -27,6 +28,9 @@
   let loading = true;
   let showCreateGame = false;
   let gameName = "";
+  let showDeleteConfirm = false;
+  let gameToDelete: Game | null = null;
+  let deleteLoading = false;
 
   onMount(async () => {
     if ($user) {
@@ -76,6 +80,34 @@
     } catch (error) {
       console.error("Error responding to invite:", error);
     }
+  }
+
+  function confirmDeleteGame(game: Game) {
+    gameToDelete = game;
+    showDeleteConfirm = true;
+  }
+
+  async function handleDeleteGame() {
+    if (!gameToDelete || !$user) return;
+
+    try {
+      deleteLoading = true;
+      const result = await deleteGame(gameToDelete.id, $user.id);
+      showDeleteConfirm = false;
+      gameToDelete = null;
+      await loadData();
+      console.log(result.message);
+    } catch (error) {
+      console.error("Error deleting game:", error);
+      alert(`Failed to delete game: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      deleteLoading = false;
+    }
+  }
+
+  function cancelDelete() {
+    showDeleteConfirm = false;
+    gameToDelete = null;
   }
 </script>
 
@@ -283,6 +315,16 @@
                       🔗 Public Link
                     </Button>
                   {/if}
+                  {#if game.gameMasterId === $user?.id}
+                    <Button
+                      on:click={() => confirmDeleteGame(game)}
+                      variant="ghost"
+                      size="sm"
+                      class="w-full text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      🗑️ Delete Game
+                    </Button>
+                  {/if}
                 </div>
               </Card.Content>
             </Card.Root>
@@ -322,6 +364,44 @@
           </Button>
           <Button on:click={handleCreateGame} disabled={!gameName.trim()}>
             Create Game
+          </Button>
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog.Root>
+
+    <!-- Delete Confirmation Dialog -->
+    <Dialog.Root bind:open={showDeleteConfirm}>
+      <Dialog.Content class="sm:max-w-[425px]">
+        <Dialog.Header>
+          <Dialog.Title class="text-destructive">Delete Game</Dialog.Title>
+          <Dialog.Description>
+            {#if gameToDelete}
+              Are you sure you want to delete "{gameToDelete.name}"?
+            {/if}
+          </Dialog.Description>
+        </Dialog.Header>
+        <div class="grid gap-4 py-4">
+          <div class="bg-red-50 border border-red-200 rounded-md p-3">
+            <p class="text-sm text-red-800">
+              <strong>Warning:</strong> This action cannot be undone. All game data, 
+              participants, and scores will be permanently deleted.
+            </p>
+          </div>
+        </div>
+        <Dialog.Footer>
+          <Button
+            variant="outline"
+            on:click={cancelDelete}
+            disabled={deleteLoading}
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="destructive"
+            on:click={handleDeleteGame} 
+            disabled={deleteLoading}
+          >
+            {deleteLoading ? "Deleting..." : "Delete Game"}
           </Button>
         </Dialog.Footer>
       </Dialog.Content>
