@@ -24,18 +24,20 @@ model Profile {
 }
 
 model Game {
-  id           String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name         String
-  gameMasterId String            @map("game_master_id") @db.Uuid
-  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  status       GameStatus        @default(SETUP)
-  winnerId     String?           @map("winner_id") @db.Uuid
-  wordList     String[]          @default([]) @map("word_list")
-  invites      GameInvite[]
-  participants GameParticipant[]
-  gameMaster   Profile           @relation("GameMaster", fields: [gameMasterId], references: [id], onDelete: Cascade)
-  winner       Profile?          @relation("GameWinner", fields: [winnerId], references: [id])
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String
+  gameMasterId      String             @map("game_master_id") @db.Uuid
+  createdAt         DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  status            GameStatus         @default(SETUP)
+  winnerId          String?            @map("winner_id") @db.Uuid
+  wordList          String[]           @default([]) @map("word_list")
+  publishedAt       DateTime?          @map("published_at") @db.Timestamptz(6)
+  invites           GameInvite[]
+  participants      GameParticipant[]
+  guestParticipants GuestParticipant[]
+  gameMaster        Profile            @relation("GameMaster", fields: [gameMasterId], references: [id], onDelete: Cascade)
+  winner            Profile?           @relation("GameWinner", fields: [winnerId], references: [id])
 
   @@map("games")
 }
@@ -54,6 +56,21 @@ model GameParticipant {
 
   @@unique([gameId, userId])
   @@map("game_participants")
+}
+
+model GuestParticipant {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  gameId         String   @map("game_id") @db.Uuid
+  guestName      String   @map("guest_name")
+  completedCells Int[]    @default([12]) @map("completed_cells")
+  score          Int      @default(1)
+  joinedAt       DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
+  boardData      String[] @default([]) @map("board_data")
+  hasWon         Boolean  @default(false) @map("has_won")
+  game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, guestName])
+  @@map("guest_participants")
 }
 
 model GameInvite {

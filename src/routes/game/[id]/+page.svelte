@@ -11,6 +11,8 @@
     getGameInvites,
     deleteGameInvite,
     resendGameInvite,
+    publishGame,
+    unpublishGame,
     type GameInviteWithRelations,
   } from "$lib/client-games";
   import Button from "$lib/components/ui/button.svelte";
@@ -21,12 +23,21 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
   import * as Table from "$lib/components/ui/table";
-  import type { Game, GameParticipant, Profile, GameInvite } from "@prisma/client";
+  import type { Game, GameParticipant, Profile, GameInvite, GuestParticipant } from "@prisma/client";
 
   type GameWithRelations = Game & {
     gameMaster: Profile;
     winner?: Profile | null;
     participants: (GameParticipant & { user: Profile })[];
+    guestParticipants?: GuestParticipant[];
+  };
+
+  type AllParticipants = {
+    id: string;
+    name: string;
+    score: number;
+    hasWon: boolean;
+    isGuest: boolean;
   };
 
   type GameParticipantWithUser = GameParticipant & { user: Profile };
@@ -34,6 +45,7 @@
   let game: GameWithRelations | null = null;
   let participants: GameParticipantWithUser[] = [];
   let userParticipant: GameParticipantWithUser | null = null;
+  let allParticipants: AllParticipants[] = [];
   let gameInvites: GameInviteWithRelations[] = [];
   let loading = true;
   let showInviteModal = false;
@@ -41,10 +53,20 @@
   let inviteEmail = "";
   let inviteLoading = false;
   let resendingInviteId: string | null = null;
+  let publishLoading = false;
+  let showShareModal = false;
 
   $: gameId = $page.params.id;
-  $: sortedParticipants = participants.sort((a, b) => b.score - a.score);
+  $: sortedParticipants = allParticipants.sort((a, b) => b.score - a.score);
   $: isGameMaster = game?.gameMasterId === $user?.id;
+  $: isPublished = !!game?.publishedAt;
+  
+  let publicUrl = "";
+  
+  // Set public URL after mount to avoid SSR issues
+  onMount(() => {
+    publicUrl = `${window.location.origin}/play/${gameId}`;
+  });
 
   onMount(async () => {
     if ($user && gameId) {
@@ -71,6 +93,25 @@
       participants = gameData.participants;
       userParticipant =
         participants.find((p) => p.userId === $user?.id) || null;
+
+      // Combine authenticated participants and guest participants
+      const authParticipants: AllParticipants[] = gameData.participants.map(p => ({
+        id: p.id,
+        name: p.user.displayName || p.user.email.split('@')[0],
+        score: p.score,
+        hasWon: p.hasWon,
+        isGuest: false
+      }));
+
+      const guestParticipants: AllParticipants[] = (gameData.guestParticipants || []).map(p => ({
+        id: p.id,
+        name: p.guestName,
+        score: p.score,
+        hasWon: p.hasWon,
+        isGuest: true
+      }));
+
+      allParticipants = [...authParticipants, ...guestParticipants];
 
       // If game is in setup and user is game master, redirect to setup
       if (game.status === "SETUP" && game.gameMasterId === $user?.id) {
@@ -197,6 +238,45 @@
     }
   }
 
+  async function handlePublish() {
+    if (!$user || !isGameMaster) return;
+
+    try {
+      publishLoading = true;
+      await publishGame(gameId, $user.id);
+      await loadGameData();
+      showShareModal = true;
+    } catch (error) {
+      console.error("Error publishing game:", error);
+      alert(`Failed to publish game: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      publishLoading = false;
+    }
+  }
+
+  async function handleUnpublish() {
+    if (!$user || !isGameMaster) return;
+
+    try {
+      publishLoading = true;
+      await unpublishGame(gameId, $user.id);
+      await loadGameData();
+    } catch (error) {
+      console.error("Error unpublishing game:", error);
+      alert(`Failed to unpublish game: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      publishLoading = false;
+    }
+  }
+
+  function copyPublicUrl() {
+    navigator.clipboard.writeText(publicUrl).then(() => {
+      alert("Link copied to clipboard!");
+    }).catch(() => {
+      alert("Failed to copy link. Please copy manually: " + publicUrl);
+    });
+  }
+
   function getCellContent(row: number, col: number): string {
     if (!userParticipant?.boardData) return "";
     const cellIndex = row * 5 + col;
@@ -214,7 +294,7 @@
   }
 
   function getUserRank(userId: string): number {
-    return sortedParticipants.findIndex((p) => p.userId === userId) + 1;
+    return sortedParticipants.findIndex((p) => p.id === userId) + 1;
   }
 </script>
 
@@ -265,6 +345,24 @@
             <Button on:click={() => (showInviteModal = true)} size="sm" class="w-full">
               📧 Invite Players
             </Button>
+            {#if isPublished}
+              <Button on:click={() => (showShareModal = true)} size="sm" class="w-full">
+                🔗 Share Game
+              </Button>
+              <Button on:click={handleUnpublish} disabled={publishLoading} variant="outline" size="sm" class="w-full">
+                {#if publishLoading}
+                  <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                {/if}
+                🔒 Make Private
+              </Button>
+            {:else}
+              <Button on:click={handlePublish} disabled={publishLoading} size="sm" class="w-full">
+                {#if publishLoading}
+                  <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                {/if}
+                🌐 Publish Game
+              </Button>
+            {/if}
           {/if}
           <Button variant="outline" href="/dashboard" size="sm" class="w-full">
             ← Back to Dashboard
@@ -296,6 +394,24 @@
             <Button on:click={() => (showInviteModal = true)}>
               Invite Players
             </Button>
+            {#if isPublished}
+              <Button on:click={() => (showShareModal = true)}>
+                🔗 Share Game
+              </Button>
+              <Button on:click={handleUnpublish} disabled={publishLoading} variant="outline">
+                {#if publishLoading}
+                  <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                {/if}
+                🔒 Make Private
+              </Button>
+            {:else}
+              <Button on:click={handlePublish} disabled={publishLoading}>
+                {#if publishLoading}
+                  <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                {/if}
+                🌐 Publish Game
+              </Button>
+            {/if}
           {/if}
           <Button variant="outline" href="/dashboard">Back to Dashboard</Button>
         </div>
@@ -344,7 +460,7 @@
             <Card.Content class="pt-4 pb-3">
               <div class="flex items-center justify-between">
                 <div class="text-sm text-muted-foreground">Rank</div>
-                <div class="text-xl font-bold">🏆 #{getUserRank(userParticipant.userId)}</div>
+                <div class="text-xl font-bold">🏆 #{getUserRank(userParticipant.id)}</div>
               </div>
             </Card.Content>
           </Card.Root>
@@ -508,7 +624,8 @@
                 </Table.Header>
                 <Table.Body>
                   {#each sortedParticipants as participant, index}
-                    <Table.Row class={participant.userId === $user?.id ? "bg-accent/50" : ""}>
+                    {@const isCurrentUser = !participant.isGuest && userParticipant?.id === participant.id}
+                    <Table.Row class={isCurrentUser ? "bg-accent/50" : ""}>
                       <Table.Cell class="font-medium">
                         <div class="flex items-center gap-2">
                           #{index + 1}
@@ -523,9 +640,12 @@
                       </Table.Cell>
                       <Table.Cell>
                         <div class="flex items-center gap-2">
-                          {participant.user.displayName || participant.user.email}
-                          {#if participant.userId === $user?.id}
+                          {participant.name}
+                          {#if isCurrentUser}
                             <Badge variant="secondary" class="text-xs">You</Badge>
+                          {/if}
+                          {#if participant.isGuest}
+                            <Badge variant="outline" class="text-xs">Guest</Badge>
                           {/if}
                           {#if participant.hasWon}
                             <Badge variant="default" class="text-xs bg-yellow-500 text-white">Winner!</Badge>
@@ -553,7 +673,8 @@
         <Card.Content>
           <div class="space-y-3">
             {#each sortedParticipants as participant, index}
-              <div class="flex items-center justify-between p-3 rounded-lg {participant.userId === $user?.id ? 'bg-accent/50' : 'bg-muted/30'}">
+              {@const isCurrentUser = !participant.isGuest && userParticipant?.id === participant.id}
+              <div class="flex items-center justify-between p-3 rounded-lg {isCurrentUser ? 'bg-accent/50' : 'bg-muted/30'}">
                 <div class="flex items-center gap-3">
                   <div class="flex items-center gap-1">
                     <span class="font-semibold">#{index + 1}</span>
@@ -567,11 +688,14 @@
                   </div>
                   <div>
                     <div class="font-medium text-sm">
-                      {participant.user.displayName || participant.user.email}
+                      {participant.name}
                     </div>
                     <div class="flex items-center gap-1">
-                      {#if participant.userId === $user?.id}
+                      {#if isCurrentUser}
                         <Badge variant="secondary" class="text-xs">You</Badge>
+                      {/if}
+                      {#if participant.isGuest}
+                        <Badge variant="outline" class="text-xs">Guest</Badge>
                       {/if}
                       {#if participant.hasWon}
                         <Badge variant="default" class="text-xs bg-yellow-500 text-white">Winner!</Badge>
@@ -714,6 +838,50 @@
             disabled={!inviteEmail.trim() || inviteLoading}
           >
             {inviteLoading ? "Sending..." : "Send Invite"}
+          </Button>
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog.Root>
+
+    <!-- Share Game Dialog -->
+    <Dialog.Root bind:open={showShareModal}>
+      <Dialog.Content class="sm:max-w-[500px]">
+        <Dialog.Header>
+          <Dialog.Title>🌐 Share Your Game</Dialog.Title>
+          <Dialog.Description>
+            Your game "{game?.name}" is now public! Anyone with this link can join and play without creating an account.
+          </Dialog.Description>
+        </Dialog.Header>
+        <div class="space-y-4">
+          <div class="space-y-2">
+            <Label>Public Game Link</Label>
+            <div class="flex gap-2">
+              <Input
+                value={publicUrl}
+                readonly
+                class="font-mono text-sm"
+              />
+              <Button on:click={copyPublicUrl} variant="outline">
+                📋 Copy
+              </Button>
+            </div>
+          </div>
+          <div class="p-4 bg-blue-50 dark:bg-blue-950/50 rounded-lg border border-blue-200 dark:border-blue-800">
+            <h4 class="font-medium text-blue-900 dark:text-blue-100 mb-2">How it works:</h4>
+            <ul class="text-sm text-blue-800 dark:text-blue-200 space-y-1">
+              <li>• Anyone can visit this link and join with just their name</li>
+              <li>• Names must be unique in your game</li>
+              <li>• No signup or passwords required for guests</li>
+              <li>• You keep full control as the game master</li>
+            </ul>
+          </div>
+        </div>
+        <Dialog.Footer>
+          <Button variant="outline" on:click={() => (showShareModal = false)}>
+            Close
+          </Button>
+          <Button on:click={copyPublicUrl}>
+            📋 Copy Link
           </Button>
         </Dialog.Footer>
       </Dialog.Content>

@@ -16,6 +16,7 @@ export const GET: RequestHandler = async ({ params }) => {
             user: true,
           },
         },
+        guestParticipants: true,
       },
     });
 

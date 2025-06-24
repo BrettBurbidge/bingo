@@ -3,12 +3,14 @@ import type {
   GameParticipant,
   GameInvite,
   Profile,
+  GuestParticipant,
 } from "@prisma/client";
 
 // Type aliases for better developer experience
 export type GameWithRelations = Game & {
   gameMaster: Profile;
   participants: (GameParticipant & { user: Profile })[];
+  guestParticipants?: GuestParticipant[];
 };
 
 export type GameParticipantWithUser = GameParticipant & { user: Profile };
@@ -17,6 +19,12 @@ export type GameInviteWithRelations = GameInvite & {
   game: Game;
   user: Profile | null; // Can be null for unregistered users
   inviter?: Profile; // Optional for some queries
+};
+
+export type PublishedGameWithRelations = Game & {
+  gameMaster: Profile;
+  participants: (GameParticipant & { user: Profile })[];
+  guestParticipants: GuestParticipant[];
 };
 
 export async function createGame(
@@ -279,15 +287,111 @@ export async function resendGameInvite(
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        userId,
-      }),
+      body: JSON.stringify({ userId }),
     }
   );
 
   if (!response.ok) {
     const error = await response.json();
     throw new Error(error.error || "Failed to resend invite");
+  }
+
+  return response.json();
+}
+
+// Published Games Functions
+export async function publishGame(
+  gameId: string,
+  userId: string
+): Promise<Game> {
+  const response = await fetch(`/api/games/${gameId}/publish`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ userId }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to publish game");
+  }
+
+  return response.json();
+}
+
+export async function unpublishGame(
+  gameId: string,
+  userId: string
+): Promise<Game> {
+  const response = await fetch(`/api/games/${gameId}/unpublish`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ userId }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to unpublish game");
+  }
+
+  return response.json();
+}
+
+export async function getPublishedGame(
+  gameId: string
+): Promise<PublishedGameWithRelations> {
+  const response = await fetch(`/api/games/published/${gameId}`);
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to fetch published game");
+  }
+
+  return response.json();
+}
+
+export async function joinGameAsGuest(
+  gameId: string,
+  guestName: string
+): Promise<GuestParticipant> {
+  const response = await fetch(`/api/games/published/${gameId}/join`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ guestName }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to join game as guest");
+  }
+
+  return response.json();
+}
+
+export async function updateGuestParticipantScore(
+  gameId: string,
+  guestId: string,
+  completedCells: number[]
+): Promise<GuestParticipant> {
+  const response = await fetch(`/api/games/published/${gameId}/score`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      guestId,
+      completedCells,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to update guest score");
   }
 
   return response.json();

@@ -239,27 +239,51 @@
               <Card.Header>
                 <div class="flex items-center justify-between">
                   <Card.Title class="text-lg">{game.name}</Card.Title>
-                  <Badge
-                    variant={game.gameMasterId === $user?.id
-                      ? "default"
-                      : "secondary"}
-                  >
-                    {game.gameMasterId === $user?.id ? "Master" : "Player"}
-                  </Badge>
+                  <div class="flex gap-1">
+                    <Badge
+                      variant={game.gameMasterId === $user?.id
+                        ? "default"
+                        : "secondary"}
+                    >
+                      {game.gameMasterId === $user?.id ? "Master" : "Player"}
+                    </Badge>
+                    {#if game.publishedAt}
+                      <Badge variant="outline" class="text-xs">
+                        🌐 Public
+                      </Badge>
+                    {/if}
+                  </div>
                 </div>
                 <Card.Description>
-                  Created {new Date(game.createdAt).toLocaleDateString()}
+                  Status: <Badge variant={game.status === "ACTIVE" ? "default" : game.status === "COMPLETED" ? "secondary" : "outline"} class="text-xs">{game.status}</Badge>
+                  {#if game.publishedAt}
+                    <br/>Published: {new Date(game.publishedAt).toLocaleDateString()}
+                  {:else}
+                    <br/>Created: {new Date(game.createdAt).toLocaleDateString()}
+                  {/if}
                 </Card.Description>
               </Card.Header>
               <Card.Content>
-                <Button
-                  href="/game/{game.id}"
-                  variant="outline"
-                  size="sm"
-                  class="w-full"
-                >
-                  View Game
-                </Button>
+                <div class="space-y-2">
+                  <Button
+                    href="/game/{game.id}"
+                    variant="outline"
+                    size="sm"
+                    class="w-full"
+                  >
+                    {game.gameMasterId === $user?.id ? "Manage Game" : "Play Game"}
+                  </Button>
+                  {#if game.publishedAt}
+                    <Button
+                      href="/play/{game.id}"
+                      variant="ghost"
+                      size="sm"
+                      class="w-full text-xs"
+                    >
+                      🔗 Public Link
+                    </Button>
+                  {/if}
+                </div>
               </Card.Content>
             </Card.Root>
           {/each}
