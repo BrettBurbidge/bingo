@@ -268,63 +268,71 @@
         <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {#each games as game}
             <Card.Root class="hover:shadow-md transition-shadow">
-              <Card.Header>
-                <div class="flex items-center justify-between">
-                  <Card.Title class="text-lg">{game.name}</Card.Title>
-                  <div class="flex gap-1">
-                    <Badge
-                      variant={game.gameMasterId === $user?.id
-                        ? "default"
-                        : "secondary"}
-                    >
-                      {game.gameMasterId === $user?.id ? "Master" : "Player"}
-                    </Badge>
-                    {#if game.publishedAt}
-                      <Badge variant="outline" class="text-xs">
-                        🌐 Public
+              <Card.Header class="pb-3">
+                <div class="flex items-start justify-between">
+                  <div class="flex-1 min-w-0">
+                    <Card.Title class="text-lg font-semibold truncate">{game.name}</Card.Title>
+                    <div class="flex items-center gap-2 mt-1">
+                      <Badge
+                        variant={game.gameMasterId === $user?.id ? "default" : "secondary"}
+                        class="text-xs"
+                      >
+                        {game.gameMasterId === $user?.id ? "Master" : "Player"}
                       </Badge>
-                    {/if}
+                      {#if game.publishedAt}
+                        <Badge variant="outline" class="text-xs">🌐 Public</Badge>
+                      {/if}
+                    </div>
                   </div>
+                  <Badge 
+                    variant={game.status === "ACTIVE" ? "default" : "secondary"}
+                    class="ml-2 text-xs"
+                  >
+                    {game.status}
+                  </Badge>
                 </div>
-                <Card.Description>
-                  Status: <Badge variant={game.status === "ACTIVE" ? "default" : game.status === "COMPLETED" ? "secondary" : "outline"} class="text-xs">{game.status}</Badge>
-                  {#if game.publishedAt}
-                    <br/>Published: {new Date(game.publishedAt).toLocaleDateString()}
-                  {:else}
-                    <br/>Created: {new Date(game.createdAt).toLocaleDateString()}
-                  {/if}
-                </Card.Description>
               </Card.Header>
-              <Card.Content>
+              
+              <Card.Content class="pt-0">
+                <div class="text-sm text-muted-foreground mb-4">
+                  {#if game.publishedAt}
+                    Published: {new Date(game.publishedAt).toLocaleDateString()}
+                  {:else}
+                    Created: {new Date(game.createdAt).toLocaleDateString()}
+                  {/if}
+                </div>
+
                 <div class="space-y-2">
                   <Button
                     href="/game/{game.id}"
-                    variant="outline"
-                    size="sm"
                     class="w-full"
+                    size="sm"
                   >
-                    {game.gameMasterId === $user?.id ? "Manage Game" : "Play Game"}
+                    {game.gameMasterId === $user?.id ? "Manage Game" : "View Game"}
                   </Button>
-                  {#if game.publishedAt}
-                    <Button
-                      href="/play/{game.id}"
-                      variant="ghost"
-                      size="sm"
-                      class="w-full text-xs"
-                    >
-                      🔗 Public Link
-                    </Button>
-                  {/if}
-                  {#if game.gameMasterId === $user?.id}
-                    <Button
-                      on:click={() => confirmDeleteGame(game)}
-                      variant="ghost"
-                      size="sm"
-                      class="w-full text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                      🗑️ Delete Game
-                    </Button>
-                  {/if}
+                  
+                  <div class="flex gap-2">
+                    {#if game.publishedAt}
+                      <Button
+                        href="/play/{game.id}"
+                        variant="outline"
+                        size="sm"
+                        class="flex-1 text-xs"
+                      >
+                        🔗 Public Link
+                      </Button>
+                    {/if}
+                    {#if game.gameMasterId === $user?.id}
+                      <Button
+                        on:click={() => confirmDeleteGame(game)}
+                        variant="outline"
+                        size="sm"
+                        class="text-xs text-destructive hover:text-destructive hover:bg-destructive/10 {game.publishedAt ? '' : 'flex-1'}"
+                      >
+                        🗑️ Delete
+                      </Button>
+                    {/if}
+                  </div>
                 </div>
               </Card.Content>
             </Card.Root>

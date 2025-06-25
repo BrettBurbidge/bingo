@@ -20,6 +20,7 @@
     getGameMasterData,
     isUserGameCreatorOrMaster,
     resendGameMasterInvite,
+    deleteGameMasterInvite,
     type GameMasterData,
     type GameMaster,
   } from "$lib/game-masters";
@@ -66,6 +67,7 @@
   let gameMasterInviteLoading = false;
   let resendingInviteId: string | null = null;
   let resendingGameMasterInviteId: string | null = null;
+  let deletingGameMasterInviteId: string | null = null;
   let publishLoading = false;
   let showShareModal = false;
 
@@ -295,6 +297,30 @@
       alert(`Failed to resend game master invite: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       resendingGameMasterInviteId = null;
+    }
+  }
+
+  async function handleDeleteGameMasterInvite(inviteId: string) {
+    if (!$user || !isGameMaster) return;
+
+    if (!confirm("Are you sure you want to delete this game master invitation?")) {
+      return;
+    }
+
+    try {
+      deletingGameMasterInviteId = inviteId;
+      await deleteGameMasterInvite(inviteId, $user.id);
+      
+      // Reload the game master data to refresh the list
+      await loadGameMasterData();
+      
+      console.log("✅ Game master invite deleted successfully!");
+      alert("Game master invitation deleted successfully!");
+    } catch (error) {
+      console.error("Error deleting game master invite:", error);
+      alert(`Failed to delete game master invite: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      deletingGameMasterInviteId = null;
     }
   }
 
@@ -893,15 +919,26 @@
                         {invite.status}
                       </Badge>
                       {#if invite.status === "PENDING"}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          on:click={() => handleResendGameMasterInvite(invite.id)}
-                          disabled={resendingGameMasterInviteId === invite.id}
-                          class="text-orange-600 hover:text-orange-700"
-                        >
-                          {resendingGameMasterInviteId === invite.id ? "Resending..." : "👑 Resend"}
-                        </Button>
+                        <div class="flex gap-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            on:click={() => handleResendGameMasterInvite(invite.id)}
+                            disabled={resendingGameMasterInviteId === invite.id || deletingGameMasterInviteId === invite.id}
+                            class="text-orange-600 hover:text-orange-700"
+                          >
+                            {resendingGameMasterInviteId === invite.id ? "Resending..." : "👑 Resend"}
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            on:click={() => handleDeleteGameMasterInvite(invite.id)}
+                            disabled={deletingGameMasterInviteId === invite.id || resendingGameMasterInviteId === invite.id}
+                            class="text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            {deletingGameMasterInviteId === invite.id ? "Deleting..." : "🗑️ Delete"}
+                          </Button>
+                        </div>
                       {/if}
                     </div>
                   </div>

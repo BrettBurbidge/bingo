@@ -144,6 +144,26 @@ export async function resendGameMasterInvite(
   return response.json();
 }
 
+export async function deleteGameMasterInvite(
+  inviteId: string,
+  userId: string
+): Promise<{ success: boolean; message: string }> {
+  const response = await fetch(`/api/game-master-invites/${inviteId}/delete`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ userId }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to delete game master invite");
+  }
+
+  return response.json();
+}
+
 export function isUserGameMaster(
   userId: string,
   gameMasters: GameMaster[]

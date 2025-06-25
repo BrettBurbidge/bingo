@@ -49,8 +49,19 @@
       // User is already logged in
       isValidSession = true;
     } else {
-      // No valid session, redirect to forgot password
-      goto('/forgot-password');
+      // Check if we came from a reset link but tokens are missing
+      // This happens when Supabase redirect URL configuration is incorrect
+      const fromReset = $page.url.searchParams.get('from_reset');
+      const resetToken = $page.url.searchParams.get('token');
+      
+      if (fromReset || resetToken || $page.url.hash.includes('access_token')) {
+        // Show a helpful error message instead of redirecting
+        error = "Reset link configuration issue. Please check that your Supabase redirect URLs are configured correctly, or try requesting a new reset email.";
+        isValidSession = false;
+      } else {
+        // No valid session, redirect to forgot password
+        goto('/forgot-password');
+      }
     }
   });
 
@@ -178,6 +189,29 @@
           <Button variant="link" on:click={goToSignIn}>
             Back to Sign In
           </Button>
+        </div>
+      {:else if error}
+        <div class="space-y-4">
+          <div class="p-4 rounded-md bg-destructive/15 border border-destructive/20">
+            <div class="flex items-start gap-3">
+              <div class="flex-shrink-0 text-destructive">
+                <span class="text-lg">⚠️</span>
+              </div>
+              <div>
+                <h4 class="text-sm font-medium text-destructive mb-1">Reset Link Issue</h4>
+                <p class="text-sm text-destructive">{error}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="text-center space-y-2">
+            <Button href="/forgot-password" class="w-full">
+              Request New Reset Email
+            </Button>
+            <Button variant="outline" href="/" class="w-full">
+              Back to Sign In
+            </Button>
+          </div>
         </div>
       {:else}
         <div class="text-center py-4">
