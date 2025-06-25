@@ -125,3 +125,87 @@ export async function initializeStorage(): Promise<boolean> {
     return false;
   }
 }
+
+export async function deleteAllGamePhotos(gameId: string): Promise<boolean> {
+  try {
+    // List all files in the game folder
+    const { data: files, error: listError } = await supabase.storage
+      .from(BUCKET_NAME)
+      .list(gameId, {
+        limit: 1000, // Adjust if you expect more than 1000 photos per game
+        sortBy: { column: "name", order: "asc" },
+      });
+
+    if (listError) {
+      console.error("Error listing game photos:", listError);
+      return false;
+    }
+
+    if (!files || files.length === 0) {
+      console.log(`No photos found for game ${gameId}`);
+      return true; // No photos to delete is considered success
+    }
+
+    // Create full paths for all files in the game folder
+    const filePaths: string[] = [];
+
+    // Get all files recursively (including subdirectories for participants)
+    const getAllFiles = async (prefix: string): Promise<string[]> => {
+      const { data: folderFiles, error: folderError } = await supabase.storage
+        .from(BUCKET_NAME)
+        .list(prefix, {
+          limit: 1000,
+          sortBy: { column: "name", order: "asc" },
+        });
+
+      if (folderError) {
+        console.error(`Error listing files in ${prefix}:`, folderError);
+        return [];
+      }
+
+      if (!folderFiles) return [];
+
+      const paths: string[] = [];
+
+      for (const file of folderFiles) {
+        const fullPath = prefix ? `${prefix}/${file.name}` : file.name;
+
+        // If it's a folder (no metadata.size means it's a folder), recurse into it
+        if (!file.metadata?.size && file.name !== ".emptyFolderPlaceholder") {
+          const subPaths = await getAllFiles(fullPath);
+          paths.push(...subPaths);
+        } else if (file.metadata?.size) {
+          // It's a file
+          paths.push(fullPath);
+        }
+      }
+
+      return paths;
+    };
+
+    const allFilePaths = await getAllFiles(gameId);
+
+    if (allFilePaths.length === 0) {
+      console.log(`No photos found for game ${gameId}`);
+      return true;
+    }
+
+    console.log(`Deleting ${allFilePaths.length} photos for game ${gameId}`);
+
+    // Delete all files
+    const { error: deleteError } = await supabase.storage
+      .from(BUCKET_NAME)
+      .remove(allFilePaths);
+
+    if (deleteError) {
+      console.error("Error deleting game photos:", deleteError);
+      return false;
+    }
+
+    console.log(`Successfully deleted all photos for game ${gameId}`);
+    return true;
+  } catch (error) {
+    console.error("Error deleting game photos:", error);
+    return false;
+  }
+}

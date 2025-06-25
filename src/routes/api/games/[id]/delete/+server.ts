@@ -1,6 +1,7 @@
 import { json, error } from "@sveltejs/kit";
 import type { RequestHandler } from "./$types";
 import { prisma } from "$lib/prisma";
+import { deleteAllGamePhotos } from "$lib/storage";
 
 export const DELETE: RequestHandler = async ({ params, request }) => {
   try {
@@ -30,6 +31,17 @@ export const DELETE: RequestHandler = async ({ params, request }) => {
       throw error(403, "Only the game master can delete this game");
     }
 
+    // Delete all photos from Supabase Storage before deleting the game
+    console.log(`Deleting all photos for game ${gameId}...`);
+    const photosDeleted = await deleteAllGamePhotos(gameId);
+
+    if (!photosDeleted) {
+      console.warn(
+        `Warning: Some photos may not have been deleted for game ${gameId}`
+      );
+      // Continue with game deletion even if photo deletion fails
+    }
+
     // Delete the game (this will cascade delete all related data)
     await prisma.game.delete({
       where: { id: gameId },
@@ -37,7 +49,7 @@ export const DELETE: RequestHandler = async ({ params, request }) => {
 
     return json({
       success: true,
-      message: `Game "${game.name}" has been deleted successfully`,
+      message: `Game "${game.name}" and all associated photos have been deleted successfully`,
     });
   } catch (err) {
     console.error("Error deleting game:", err);

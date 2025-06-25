@@ -13,6 +13,7 @@
     resendGameInvite,
     publishGame,
     unpublishGame,
+    cloneGame,
     type GameInviteWithRelations,
   } from "$lib/client-games";
   import {
@@ -32,7 +33,13 @@
   import { Badge } from "$lib/components/ui/badge";
   import { Separator } from "$lib/components/ui/separator";
   import * as Table from "$lib/components/ui/table";
-  import type { Game, GameParticipant, Profile, GameInvite, GuestParticipant } from "@prisma/client";
+  import type {
+    Game,
+    GameParticipant,
+    Profile,
+    GameInvite,
+    GuestParticipant,
+  } from "@prisma/client";
 
   type GameWithRelations = Game & {
     gameMaster: Profile;
@@ -70,15 +77,18 @@
   let deletingGameMasterInviteId: string | null = null;
   let publishLoading = false;
   let showShareModal = false;
+  let showCloneModal = false;
+  let cloneGameName = "";
+  let cloneLoading = false;
 
   $: gameId = $page.params.id;
   $: sortedParticipants = allParticipants.sort((a, b) => b.score - a.score);
   $: isGameCreator = game?.gameMasterId === $user?.id;
   $: isGameMaster = game?.gameMasterId === $user?.id; // Will update this after loading game master data
   $: isPublished = !!game?.publishedAt;
-  
+
   let publicUrl = "";
-  
+
   // Set public URL after mount to avoid SSR issues
   onMount(() => {
     publicUrl = `${window.location.origin}/play/${gameId}`;
@@ -112,20 +122,24 @@
         participants.find((p) => p.userId === $user?.id) || null;
 
       // Combine authenticated participants and guest participants
-      const authParticipants: AllParticipants[] = gameData.participants.map(p => ({
-        id: p.id,
-        name: p.user.displayName || p.user.email.split('@')[0],
-        score: p.score,
-        hasWon: p.hasWon,
-        isGuest: false
-      }));
+      const authParticipants: AllParticipants[] = gameData.participants.map(
+        (p) => ({
+          id: p.id,
+          name: p.user.displayName || p.user.email.split("@")[0],
+          score: p.score,
+          hasWon: p.hasWon,
+          isGuest: false,
+        })
+      );
 
-      const guestParticipants: AllParticipants[] = (gameData.guestParticipants || []).map(p => ({
+      const guestParticipants: AllParticipants[] = (
+        gameData.guestParticipants || []
+      ).map((p) => ({
         id: p.id,
-        name: p.guestName || p.email.split('@')[0], // Fallback to email prefix if no display name
+        name: p.guestName || p.email.split("@")[0], // Fallback to email prefix if no display name
         score: p.score,
         hasWon: p.hasWon,
-        isGuest: true
+        isGuest: true,
       }));
 
       allParticipants = [...authParticipants, ...guestParticipants];
@@ -194,24 +208,35 @@
 
     try {
       inviteLoading = true;
-      const result = await inviteUserToGame(gameId, inviteEmail.trim(), $user.id) as any;
+      const result = (await inviteUserToGame(
+        gameId,
+        inviteEmail.trim(),
+        $user.id
+      )) as any;
       inviteEmail = "";
       showInviteModal = false;
       await loadGameInvites();
-      
+
       // Show feedback about email status
       if (result.emailSent) {
         console.log("✅ Invite sent and email delivered successfully!");
         // You could show a success toast here
       } else {
-        console.warn("⚠️ Invite created but email failed to send:", result.emailError);
+        console.warn(
+          "⚠️ Invite created but email failed to send:",
+          result.emailError
+        );
         // You could show a warning toast here
-        alert(`Invite created but email failed to send: ${result.emailError || 'Unknown error'}`);
+        alert(
+          `Invite created but email failed to send: ${result.emailError || "Unknown error"}`
+        );
       }
     } catch (error) {
       console.error("Error sending invite:", error);
       // Show error message to user
-      alert(`Failed to send invite: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(
+        `Failed to send invite: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     } finally {
       inviteLoading = false;
     }
@@ -222,22 +247,35 @@
 
     try {
       gameMasterInviteLoading = true;
-      const result = await inviteGameMaster(gameId, gameMasterInviteEmail.trim(), $user.id) as any;
+      const result = (await inviteGameMaster(
+        gameId,
+        gameMasterInviteEmail.trim(),
+        $user.id
+      )) as any;
       gameMasterInviteEmail = "";
       showGameMasterInviteModal = false;
       await loadGameMasterData();
-      
+
       // Show feedback about email status
       if (result.emailSent) {
-        console.log("✅ Game master invite sent and email delivered successfully!");
+        console.log(
+          "✅ Game master invite sent and email delivered successfully!"
+        );
         alert("Game master invitation sent successfully!");
       } else {
-        console.warn("⚠️ Game master invite created but email failed to send:", result.emailError);
-        alert(`Game master invite created but email failed to send: ${result.emailError || 'Unknown error'}`);
+        console.warn(
+          "⚠️ Game master invite created but email failed to send:",
+          result.emailError
+        );
+        alert(
+          `Game master invite created but email failed to send: ${result.emailError || "Unknown error"}`
+        );
       }
     } catch (error) {
       console.error("Error sending game master invite:", error);
-      alert(`Failed to send game master invite: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(
+        `Failed to send game master invite: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     } finally {
       gameMasterInviteLoading = false;
     }
@@ -260,18 +298,22 @@
     try {
       resendingInviteId = inviteId;
       const result = await resendGameInvite(gameId, inviteId, $user.id);
-      
+
       // Show feedback about email status
       if (result.emailSent) {
         console.log("✅ Invite resent successfully!");
         alert("Invite email resent successfully!");
       } else {
         console.warn("⚠️ Failed to resend email:", result.emailError);
-        alert(`Failed to resend email: ${result.emailError || 'Unknown error'}`);
+        alert(
+          `Failed to resend email: ${result.emailError || "Unknown error"}`
+        );
       }
     } catch (error) {
       console.error("Error resending invite:", error);
-      alert(`Failed to resend invite: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(
+        `Failed to resend invite: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     } finally {
       resendingInviteId = null;
     }
@@ -283,18 +325,25 @@
     try {
       resendingGameMasterInviteId = inviteId;
       const result = await resendGameMasterInvite(inviteId, $user.id);
-      
+
       // Show feedback about email status
       if (result.emailSent) {
         console.log("✅ Game master invite resent successfully!");
         alert("Game master invitation email resent successfully!");
       } else {
-        console.warn("⚠️ Failed to resend game master email:", result.emailError);
-        alert(`Failed to resend game master email: ${result.emailError || 'Unknown error'}`);
+        console.warn(
+          "⚠️ Failed to resend game master email:",
+          result.emailError
+        );
+        alert(
+          `Failed to resend game master email: ${result.emailError || "Unknown error"}`
+        );
       }
     } catch (error) {
       console.error("Error resending game master invite:", error);
-      alert(`Failed to resend game master invite: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(
+        `Failed to resend game master invite: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     } finally {
       resendingGameMasterInviteId = null;
     }
@@ -303,22 +352,26 @@
   async function handleDeleteGameMasterInvite(inviteId: string) {
     if (!$user || !isGameMaster) return;
 
-    if (!confirm("Are you sure you want to delete this game master invitation?")) {
+    if (
+      !confirm("Are you sure you want to delete this game master invitation?")
+    ) {
       return;
     }
 
     try {
       deletingGameMasterInviteId = inviteId;
       await deleteGameMasterInvite(inviteId, $user.id);
-      
+
       // Reload the game master data to refresh the list
       await loadGameMasterData();
-      
+
       console.log("✅ Game master invite deleted successfully!");
       alert("Game master invitation deleted successfully!");
     } catch (error) {
       console.error("Error deleting game master invite:", error);
-      alert(`Failed to delete game master invite: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(
+        `Failed to delete game master invite: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     } finally {
       deletingGameMasterInviteId = null;
     }
@@ -334,7 +387,9 @@
       showShareModal = true;
     } catch (error) {
       console.error("Error publishing game:", error);
-      alert(`Failed to publish game: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(
+        `Failed to publish game: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     } finally {
       publishLoading = false;
     }
@@ -349,18 +404,23 @@
       await loadGameData();
     } catch (error) {
       console.error("Error unpublishing game:", error);
-      alert(`Failed to unpublish game: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(
+        `Failed to unpublish game: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     } finally {
       publishLoading = false;
     }
   }
 
   function copyPublicUrl() {
-    navigator.clipboard.writeText(publicUrl).then(() => {
-      alert("Link copied to clipboard!");
-    }).catch(() => {
-      alert("Failed to copy link. Please copy manually: " + publicUrl);
-    });
+    navigator.clipboard
+      .writeText(publicUrl)
+      .then(() => {
+        alert("Link copied to clipboard!");
+      })
+      .catch(() => {
+        alert("Failed to copy link. Please copy manually: " + publicUrl);
+      });
   }
 
   function getCellContent(row: number, col: number): string {
@@ -377,10 +437,14 @@
 
   function getCardTypeIcon(cardType: string): string {
     switch (cardType) {
-      case "see": return "👁️";
-      case "action": return "⚡";
-      case "free": return "🎯";
-      default: return "👁️";
+      case "see":
+        return "👁️";
+      case "action":
+        return "⚡";
+      case "free":
+        return "🎯";
+      default:
+        return "👁️";
     }
   }
 
@@ -396,6 +460,30 @@
 
   function getUserRank(userId: string): number {
     return sortedParticipants.findIndex((p) => p.id === userId) + 1;
+  }
+
+  async function handleCloneGame() {
+    if (!$user || !cloneGameName.trim()) return;
+
+    try {
+      cloneLoading = true;
+      const result = await cloneGame(gameId, $user.id, cloneGameName.trim());
+
+      // Close modal and reset
+      showCloneModal = false;
+      cloneGameName = "";
+
+      // Navigate to setup page for the new game
+      alert(result.message);
+      goto(`/game/${result.game.id}/setup`);
+    } catch (error) {
+      console.error("Error cloning game:", error);
+      alert(
+        `Failed to clone game: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    } finally {
+      cloneLoading = false;
+    }
   }
 </script>
 
@@ -443,28 +531,79 @@
         </div>
         <div class="flex flex-col gap-2 mt-4">
           {#if isGameCreator && game.status === "ACTIVE"}
-            <Button on:click={() => (showGameMasterInviteModal = true)} size="sm" class="w-full">
+            <Button
+              on:click={() => (showGameMasterInviteModal = true)}
+              size="sm"
+              class="w-full"
+            >
               👑 Invite Game Masters
             </Button>
+          {/if}
+
+          <!-- Edit button for game masters on active/completed games -->
+          {#if isGameCreator && (game.status === "ACTIVE" || game.status === "COMPLETED")}
+            <Button
+              href="/game/{gameId}/setup?edit=true"
+              variant="outline"
+              size="sm"
+              class="w-full"
+            >
+              ✏️ Edit Game
+            </Button>
+          {/if}
+
+          {#if isGameCreator && game.status === "ACTIVE"}
             {#if isPublished}
-              <Button on:click={() => (showShareModal = true)} size="sm" class="w-full">
+              <Button
+                on:click={() => (showShareModal = true)}
+                size="sm"
+                class="w-full"
+              >
                 🔗 Share Game
               </Button>
-              <Button on:click={handleUnpublish} disabled={publishLoading} variant="outline" size="sm" class="w-full">
+              <Button
+                on:click={handleUnpublish}
+                disabled={publishLoading}
+                variant="outline"
+                size="sm"
+                class="w-full"
+              >
                 {#if publishLoading}
-                  <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                  <div
+                    class="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"
+                  ></div>
                 {/if}
                 🔒 Make Private
               </Button>
             {:else}
-              <Button on:click={handlePublish} disabled={publishLoading} size="sm" class="w-full">
+              <Button
+                on:click={handlePublish}
+                disabled={publishLoading}
+                size="sm"
+                class="w-full"
+              >
                 {#if publishLoading}
-                  <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  <div
+                    class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"
+                  ></div>
                 {/if}
                 🌐 Publish Game
               </Button>
             {/if}
           {/if}
+
+          <!-- Clone button for any game participant -->
+          {#if game.wordList && game.wordList.length > 0}
+            <Button
+              on:click={() => (showCloneModal = true)}
+              variant="outline"
+              size="sm"
+              class="w-full"
+            >
+              📋 Clone Game
+            </Button>
+          {/if}
+
           <Button variant="outline" href="/dashboard" size="sm" class="w-full">
             ← Back to Dashboard
           </Button>
@@ -472,12 +611,15 @@
       </div>
 
       <!-- Desktop Header -->
-      <div class="hidden lg:flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div
+        class="hidden lg:flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+      >
         <div>
           <h1 class="text-3xl font-bold tracking-tight">{game.name}</h1>
           <div class="flex items-center gap-2">
             <p class="text-muted-foreground">
-              Game Master: {game.gameMaster.displayName || game.gameMaster.email}
+              Game Master: {game.gameMaster.displayName ||
+                game.gameMaster.email}
             </p>
             <Badge
               variant={game.status === "ACTIVE"
@@ -495,25 +637,51 @@
             <Button on:click={() => (showGameMasterInviteModal = true)}>
               👑 Invite Game Masters
             </Button>
+          {/if}
+
+          <!-- Edit button for game masters on active/completed games -->
+          {#if isGameCreator && (game.status === "ACTIVE" || game.status === "COMPLETED")}
+            <Button href="/game/{gameId}/setup?edit=true" variant="outline">
+              ✏️ Edit Game
+            </Button>
+          {/if}
+
+          {#if isGameCreator && game.status === "ACTIVE"}
             {#if isPublished}
               <Button on:click={() => (showShareModal = true)}>
                 🔗 Share Game
               </Button>
-              <Button on:click={handleUnpublish} disabled={publishLoading} variant="outline">
+              <Button
+                on:click={handleUnpublish}
+                disabled={publishLoading}
+                variant="outline"
+              >
                 {#if publishLoading}
-                  <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+                  <div
+                    class="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"
+                  ></div>
                 {/if}
                 🔒 Make Private
               </Button>
             {:else}
               <Button on:click={handlePublish} disabled={publishLoading}>
                 {#if publishLoading}
-                  <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  <div
+                    class="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"
+                  ></div>
                 {/if}
                 🌐 Publish Game
               </Button>
             {/if}
           {/if}
+
+          <!-- Clone button for any game participant -->
+          {#if game.wordList && game.wordList.length > 0}
+            <Button on:click={() => (showCloneModal = true)} variant="outline">
+              📋 Clone Game
+            </Button>
+          {/if}
+
           <Button variant="outline" href="/dashboard">Back to Dashboard</Button>
         </div>
       </div>
@@ -556,7 +724,9 @@
             <Card.Content class="pt-4 pb-3">
               <div class="flex items-center justify-between">
                 <div class="text-sm text-muted-foreground">Score</div>
-                <div class="text-xl font-bold">🎯 {userParticipant.score}/25</div>
+                <div class="text-xl font-bold">
+                  🎯 {userParticipant.score}/25
+                </div>
               </div>
             </Card.Content>
           </Card.Root>
@@ -564,7 +734,9 @@
             <Card.Content class="pt-4 pb-3">
               <div class="flex items-center justify-between">
                 <div class="text-sm text-muted-foreground">Rank</div>
-                <div class="text-xl font-bold">🏆 #{getUserRank(userParticipant.id)}</div>
+                <div class="text-xl font-bold">
+                  🏆 #{getUserRank(userParticipant.id)}
+                </div>
               </div>
             </Card.Content>
           </Card.Root>
@@ -599,19 +771,31 @@
                   >
                     <!-- Card Type Icon in top left -->
                     {#if !isCenter}
-                      <div class="absolute top-1 left-1 text-[8px] {isCompleted ? 'opacity-90 text-white drop-shadow-sm' : 'opacity-70'}">
+                      <div
+                        class="absolute top-1 left-1 text-[8px] {isCompleted
+                          ? 'opacity-90 text-white drop-shadow-sm'
+                          : 'opacity-70'}"
+                      >
                         {cardTypeIcon}
                       </div>
                     {/if}
-                    
+
                     <!-- Main content -->
-                    <span class="break-words hyphens-auto text-center leading-tight max-w-full {!isCenter ? 'mt-2' : ''}">
+                    <span
+                      class="break-words hyphens-auto text-center leading-tight max-w-full {!isCenter
+                        ? 'mt-2'
+                        : ''}"
+                    >
                       {content}
                     </span>
-                    
+
                     {#if isCenter}
-                      <div class="absolute inset-0 flex items-center justify-center">
-                        <Badge variant="secondary" class="text-xs px-1 py-0">FREE</Badge>
+                      <div
+                        class="absolute inset-0 flex items-center justify-center"
+                      >
+                        <Badge variant="secondary" class="text-xs px-1 py-0"
+                          >FREE</Badge
+                        >
                       </div>
                     {/if}
                   </button>
@@ -629,7 +813,9 @@
         <!-- Desktop User Stats -->
         <div class="grid gap-4 md:grid-cols-4 mb-8">
           <Card.Root>
-            <Card.Header class="flex flex-row items-center justify-between space-y-0 pb-2">
+            <Card.Header
+              class="flex flex-row items-center justify-between space-y-0 pb-2"
+            >
               <Card.Title class="text-sm font-medium">Your Score</Card.Title>
               <div class="h-4 w-4 text-muted-foreground">🎯</div>
             </Card.Header>
@@ -639,17 +825,23 @@
           </Card.Root>
 
           <Card.Root>
-            <Card.Header class="flex flex-row items-center justify-between space-y-0 pb-2">
+            <Card.Header
+              class="flex flex-row items-center justify-between space-y-0 pb-2"
+            >
               <Card.Title class="text-sm font-medium">Your Rank</Card.Title>
               <div class="h-4 w-4 text-muted-foreground">🏆</div>
             </Card.Header>
             <Card.Content>
-              <div class="text-2xl font-bold">#{getUserRank(userParticipant.userId)}</div>
+              <div class="text-2xl font-bold">
+                #{getUserRank(userParticipant.userId)}
+              </div>
             </Card.Content>
           </Card.Root>
 
           <Card.Root>
-            <Card.Header class="flex flex-row items-center justify-between space-y-0 pb-2">
+            <Card.Header
+              class="flex flex-row items-center justify-between space-y-0 pb-2"
+            >
               <Card.Title class="text-sm font-medium">Total Players</Card.Title>
               <div class="h-4 w-4 text-muted-foreground">👥</div>
             </Card.Header>
@@ -659,12 +851,16 @@
           </Card.Root>
 
           <Card.Root>
-            <Card.Header class="flex flex-row items-center justify-between space-y-0 pb-2">
+            <Card.Header
+              class="flex flex-row items-center justify-between space-y-0 pb-2"
+            >
               <Card.Title class="text-sm font-medium">Progress</Card.Title>
               <div class="h-4 w-4 text-muted-foreground">📊</div>
             </Card.Header>
             <Card.Content>
-              <div class="text-2xl font-bold">{Math.round((userParticipant.score / 25) * 100)}%</div>
+              <div class="text-2xl font-bold">
+                {Math.round((userParticipant.score / 25) * 100)}%
+              </div>
             </Card.Content>
           </Card.Root>
         </div>
@@ -678,7 +874,8 @@
             <Card.Header>
               <Card.Title>Your Bingo Board</Card.Title>
               <Card.Description>
-                Click cells to mark them as completed. The center square is always FREE!
+                Click cells to mark them as completed. The center square is
+                always FREE!
               </Card.Description>
             </Card.Header>
             <Card.Content>
@@ -703,19 +900,31 @@
                       >
                         <!-- Card Type Icon in top left -->
                         {#if !isCenter}
-                          <div class="absolute top-1 left-1 text-[8px] {isCompleted ? 'opacity-90 text-white drop-shadow-sm' : 'opacity-70'}">
+                          <div
+                            class="absolute top-1 left-1 text-[8px] {isCompleted
+                              ? 'opacity-90 text-white drop-shadow-sm'
+                              : 'opacity-70'}"
+                          >
                             {cardTypeIcon}
                           </div>
                         {/if}
-                        
+
                         <!-- Main content -->
-                        <span class="break-words hyphens-auto text-center leading-tight max-w-full {!isCenter ? 'mt-2' : ''}">
+                        <span
+                          class="break-words hyphens-auto text-center leading-tight max-w-full {!isCenter
+                            ? 'mt-2'
+                            : ''}"
+                        >
                           {content}
                         </span>
-                        
+
                         {#if isCenter}
-                          <div class="absolute inset-0 flex items-center justify-center">
-                            <Badge variant="secondary" class="text-xs px-1 py-0">FREE</Badge>
+                          <div
+                            class="absolute inset-0 flex items-center justify-center"
+                          >
+                            <Badge variant="secondary" class="text-xs px-1 py-0"
+                              >FREE</Badge
+                            >
                           </div>
                         {/if}
                       </button>
@@ -726,7 +935,9 @@
                 <div class="text-center py-8">
                   <div class="mx-auto h-12 w-12 mb-4 text-4xl">🚫</div>
                   <h3 class="text-lg font-semibold mb-2">Not a participant</h3>
-                  <p class="text-muted-foreground mb-4">You're not a participant in this game.</p>
+                  <p class="text-muted-foreground mb-4">
+                    You're not a participant in this game.
+                  </p>
                   <Button href="/dashboard">Back to Dashboard</Button>
                 </div>
               {/if}
@@ -739,7 +950,9 @@
           <Card.Root>
             <Card.Header>
               <Card.Title>Leaderboard</Card.Title>
-              <Card.Description>See how you stack up against other players</Card.Description>
+              <Card.Description
+                >See how you stack up against other players</Card.Description
+              >
             </Card.Header>
             <Card.Content>
               <Table.Root>
@@ -752,7 +965,9 @@
                 </Table.Header>
                 <Table.Body>
                   {#each sortedParticipants as participant, index}
-                    {@const isCurrentUser = !participant.isGuest && userParticipant?.id === participant.id}
+                    {@const isCurrentUser =
+                      !participant.isGuest &&
+                      userParticipant?.id === participant.id}
                     <Table.Row class={isCurrentUser ? "bg-accent/50" : ""}>
                       <Table.Cell class="font-medium">
                         <div class="flex items-center gap-2">
@@ -770,17 +985,27 @@
                         <div class="flex items-center gap-2">
                           {participant.name}
                           {#if isCurrentUser}
-                            <Badge variant="secondary" class="text-xs">You</Badge>
+                            <Badge variant="secondary" class="text-xs"
+                              >You</Badge
+                            >
                           {/if}
                           {#if participant.isGuest}
-                            <Badge variant="outline" class="text-xs">Guest</Badge>
+                            <Badge variant="outline" class="text-xs"
+                              >Guest</Badge
+                            >
                           {/if}
                           {#if participant.hasWon}
-                            <Badge variant="default" class="text-xs bg-yellow-500 text-white">Winner!</Badge>
+                            <Badge
+                              variant="default"
+                              class="text-xs bg-yellow-500 text-white"
+                              >Winner!</Badge
+                            >
                           {/if}
                         </div>
                       </Table.Cell>
-                      <Table.Cell class="text-right font-medium">{participant.score}/25</Table.Cell>
+                      <Table.Cell class="text-right font-medium"
+                        >{participant.score}/25</Table.Cell
+                      >
                     </Table.Row>
                   {/each}
                 </Table.Body>
@@ -801,8 +1026,13 @@
         <Card.Content>
           <div class="space-y-3">
             {#each sortedParticipants as participant, index}
-              {@const isCurrentUser = !participant.isGuest && userParticipant?.id === participant.id}
-              <div class="flex items-center justify-between p-3 rounded-lg {isCurrentUser ? 'bg-accent/50' : 'bg-muted/30'}">
+              {@const isCurrentUser =
+                !participant.isGuest && userParticipant?.id === participant.id}
+              <div
+                class="flex items-center justify-between p-3 rounded-lg {isCurrentUser
+                  ? 'bg-accent/50'
+                  : 'bg-muted/30'}"
+              >
                 <div class="flex items-center gap-3">
                   <div class="flex items-center gap-1">
                     <span class="font-semibold">#{index + 1}</span>
@@ -826,7 +1056,11 @@
                         <Badge variant="outline" class="text-xs">Guest</Badge>
                       {/if}
                       {#if participant.hasWon}
-                        <Badge variant="default" class="text-xs bg-yellow-500 text-white">Winner!</Badge>
+                        <Badge
+                          variant="default"
+                          class="text-xs bg-yellow-500 text-white"
+                          >Winner!</Badge
+                        >
                       {/if}
                     </div>
                   </div>
@@ -859,26 +1093,39 @@
           <Card.Root>
             <Card.Header>
               <Card.Title>Current Game Masters</Card.Title>
-              <Card.Description>Users who can manage this game</Card.Description>
+              <Card.Description>Users who can manage this game</Card.Description
+              >
             </Card.Header>
             <Card.Content>
               <div class="space-y-3">
                 <!-- Original Game Creator -->
-                <div class="flex items-center justify-between p-3 rounded-lg bg-primary/5">
+                <div
+                  class="flex items-center justify-between p-3 rounded-lg bg-primary/5"
+                >
                   <div>
-                    <div class="font-medium">{game?.gameMaster.displayName || game?.gameMaster.email}</div>
-                    <div class="text-sm text-muted-foreground">Game Creator</div>
+                    <div class="font-medium">
+                      {game?.gameMaster.displayName || game?.gameMaster.email}
+                    </div>
+                    <div class="text-sm text-muted-foreground">
+                      Game Creator
+                    </div>
                   </div>
                   <Badge variant="default">Owner</Badge>
                 </div>
-                
+
                 <!-- Additional Game Masters -->
                 {#each gameMasterData.gameMasters as gameMaster}
-                  <div class="flex items-center justify-between p-3 rounded-lg border">
+                  <div
+                    class="flex items-center justify-between p-3 rounded-lg border"
+                  >
                     <div>
-                      <div class="font-medium">{gameMaster.user.displayName || gameMaster.user.email}</div>
+                      <div class="font-medium">
+                        {gameMaster.user.displayName || gameMaster.user.email}
+                      </div>
                       <div class="text-sm text-muted-foreground">
-                        Added {new Date(gameMaster.createdAt).toLocaleDateString()}
+                        Added {new Date(
+                          gameMaster.createdAt
+                        ).toLocaleDateString()}
                       </div>
                     </div>
                     <Badge variant="secondary">Game Master</Badge>
@@ -894,27 +1141,40 @@
           <Card.Root>
             <Card.Header>
               <Card.Title>Pending Invitations</Card.Title>
-              <Card.Description>Game master invites awaiting response</Card.Description>
+              <Card.Description
+                >Game master invites awaiting response</Card.Description
+              >
             </Card.Header>
             <Card.Content>
               <div class="space-y-3">
                 {#each gameMasterData.invites as invite}
-                  <div class="flex items-center justify-between p-3 rounded-lg border">
+                  <div
+                    class="flex items-center justify-between p-3 rounded-lg border"
+                  >
                     <div class="flex-1">
                       <div class="font-medium">{invite.email}</div>
                       <div class="text-sm text-muted-foreground">
-                        Invited {new Date(invite.createdAt).toLocaleDateString()}
+                        Invited {new Date(
+                          invite.createdAt
+                        ).toLocaleDateString()}
                         {#if invite.status === "PENDING"}
-                          • Expires {new Date(invite.expiresAt).toLocaleDateString()}
+                          • Expires {new Date(
+                            invite.expiresAt
+                          ).toLocaleDateString()}
                           <br />
-                          <span class="text-xs">Click "Resend" to send another email reminder</span>
+                          <span class="text-xs"
+                            >Click "Resend" to send another email reminder</span
+                          >
                         {/if}
                       </div>
                     </div>
                     <div class="flex items-center gap-2">
-                      <Badge 
-                        variant={invite.status === "PENDING" ? "secondary" : 
-                                 invite.status === "ACCEPTED" ? "default" : "destructive"}
+                      <Badge
+                        variant={invite.status === "PENDING"
+                          ? "secondary"
+                          : invite.status === "ACCEPTED"
+                            ? "default"
+                            : "destructive"}
                       >
                         {invite.status}
                       </Badge>
@@ -923,20 +1183,30 @@
                           <Button
                             variant="outline"
                             size="sm"
-                            on:click={() => handleResendGameMasterInvite(invite.id)}
-                            disabled={resendingGameMasterInviteId === invite.id || deletingGameMasterInviteId === invite.id}
+                            on:click={() =>
+                              handleResendGameMasterInvite(invite.id)}
+                            disabled={resendingGameMasterInviteId ===
+                              invite.id ||
+                              deletingGameMasterInviteId === invite.id}
                             class="text-orange-600 hover:text-orange-700"
                           >
-                            {resendingGameMasterInviteId === invite.id ? "Resending..." : "👑 Resend"}
+                            {resendingGameMasterInviteId === invite.id
+                              ? "Resending..."
+                              : "👑 Resend"}
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
-                            on:click={() => handleDeleteGameMasterInvite(invite.id)}
-                            disabled={deletingGameMasterInviteId === invite.id || resendingGameMasterInviteId === invite.id}
+                            on:click={() =>
+                              handleDeleteGameMasterInvite(invite.id)}
+                            disabled={deletingGameMasterInviteId ===
+                              invite.id ||
+                              resendingGameMasterInviteId === invite.id}
                             class="text-red-600 hover:text-red-700 hover:bg-red-50"
                           >
-                            {deletingGameMasterInviteId === invite.id ? "Deleting..." : "🗑️ Delete"}
+                            {deletingGameMasterInviteId === invite.id
+                              ? "Deleting..."
+                              : "🗑️ Delete"}
                           </Button>
                         </div>
                       {/if}
@@ -955,9 +1225,14 @@
       <div class="space-y-6">
         <div class="flex items-center justify-between">
           <div>
-            <h2 class="text-2xl font-semibold tracking-tight">Player Invites</h2>
+            <h2 class="text-2xl font-semibold tracking-tight">
+              Player Invites
+            </h2>
             <p class="text-muted-foreground">
-              You have sent {gameInvites.length} player invitation{gameInvites.length === 1 ? "" : "s"} for this game
+              You have sent {gameInvites.length} player invitation{gameInvites.length ===
+              1
+                ? ""
+                : "s"} for this game
             </p>
           </div>
           {#if game?.status === "ACTIVE"}
@@ -983,9 +1258,12 @@
                     </Card.Description>
                   </div>
                   <div class="flex items-center gap-2">
-                    <Badge 
-                      variant={invite.status === "PENDING" ? "secondary" : 
-                               invite.status === "ACCEPTED" ? "default" : "destructive"}
+                    <Badge
+                      variant={invite.status === "PENDING"
+                        ? "secondary"
+                        : invite.status === "ACCEPTED"
+                          ? "default"
+                          : "destructive"}
                     >
                       {invite.status}
                     </Badge>
@@ -997,7 +1275,9 @@
                         disabled={resendingInviteId === invite.id}
                         class="text-blue-600 hover:text-blue-700"
                       >
-                        {resendingInviteId === invite.id ? "Resending..." : "📧 Resend"}
+                        {resendingInviteId === invite.id
+                          ? "Resending..."
+                          : "📧 Resend"}
                       </Button>
                       <Button
                         variant="ghost"
@@ -1014,10 +1294,18 @@
               <Card.Content>
                 <div class="flex items-center justify-between">
                   <div class="text-sm text-muted-foreground">
-                    <p>Sent: {new Date(invite.createdAt).toLocaleDateString()}</p>
+                    <p>
+                      Sent: {new Date(invite.createdAt).toLocaleDateString()}
+                    </p>
                     {#if invite.status === "PENDING"}
-                      <p>Expires: {new Date(invite.expiresAt).toLocaleDateString()}</p>
-                      <p class="text-xs">Click "Resend" to send another email reminder</p>
+                      <p>
+                        Expires: {new Date(
+                          invite.expiresAt
+                        ).toLocaleDateString()}
+                      </p>
+                      <p class="text-xs">
+                        Click "Resend" to send another email reminder
+                      </p>
                     {/if}
                   </div>
                   {#if invite.status === "PENDING"}
@@ -1029,7 +1317,9 @@
                         disabled={resendingInviteId === invite.id}
                         class="text-blue-600 hover:text-blue-700"
                       >
-                        {resendingInviteId === invite.id ? "Resending..." : "📧 Resend"}
+                        {resendingInviteId === invite.id
+                          ? "Resending..."
+                          : "📧 Resend"}
                       </Button>
                     </div>
                   {/if}
@@ -1047,7 +1337,8 @@
         <Dialog.Header>
           <Dialog.Title>👑 Invite Game Master</Dialog.Title>
           <Dialog.Description>
-            Invite another user to help manage "{game?.name}". Game masters can publish/unpublish games and invite other game masters.
+            Invite another user to help manage "{game?.name}". Game masters can
+            publish/unpublish games and invite other game masters.
           </Dialog.Description>
         </Dialog.Header>
         <div class="grid gap-4 py-4">
@@ -1060,9 +1351,12 @@
               type="email"
             />
           </div>
-          <div class="p-3 bg-orange-50 dark:bg-orange-950/50 rounded-lg border border-orange-200 dark:border-orange-800">
+          <div
+            class="p-3 bg-orange-50 dark:bg-orange-950/50 rounded-lg border border-orange-200 dark:border-orange-800"
+          >
             <p class="text-sm text-orange-800 dark:text-orange-200">
-              ⚠️ Game masters have the same permissions as you, including the ability to invite other game masters.
+              ⚠️ Game masters have the same permissions as you, including the
+              ability to invite other game masters.
             </p>
           </div>
         </div>
@@ -1133,27 +1427,30 @@
         <Dialog.Header>
           <Dialog.Title>🌐 Share Your Game</Dialog.Title>
           <Dialog.Description>
-            Your game "{game?.name}" is now public! Anyone with this link can join and play without creating an account.
+            Your game "{game?.name}" is now public! Anyone with this link can
+            join and play without creating an account.
           </Dialog.Description>
         </Dialog.Header>
         <div class="space-y-4">
           <div class="space-y-2">
             <Label>Public Game Link</Label>
             <div class="flex gap-2">
-              <Input
-                value={publicUrl}
-                readonly
-                class="font-mono text-sm"
-              />
+              <Input value={publicUrl} readonly class="font-mono text-sm" />
               <Button on:click={copyPublicUrl} variant="outline">
                 📋 Copy
               </Button>
             </div>
           </div>
-          <div class="p-4 bg-blue-50 dark:bg-blue-950/50 rounded-lg border border-blue-200 dark:border-blue-800">
-            <h4 class="font-medium text-blue-900 dark:text-blue-100 mb-2">How it works:</h4>
+          <div
+            class="p-4 bg-blue-50 dark:bg-blue-950/50 rounded-lg border border-blue-200 dark:border-blue-800"
+          >
+            <h4 class="font-medium text-blue-900 dark:text-blue-100 mb-2">
+              How it works:
+            </h4>
             <ul class="text-sm text-blue-800 dark:text-blue-200 space-y-1">
-              <li>• Anyone can visit this link and join with just their name</li>
+              <li>
+                • Anyone can visit this link and join with just their name
+              </li>
               <li>• Names must be unique in your game</li>
               <li>• No signup or passwords required for guests</li>
               <li>• You keep full control as the game master</li>
@@ -1164,8 +1461,56 @@
           <Button variant="outline" on:click={() => (showShareModal = false)}>
             Close
           </Button>
-          <Button on:click={copyPublicUrl}>
-            📋 Copy Link
+          <Button on:click={copyPublicUrl}>📋 Copy Link</Button>
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog.Root>
+
+    <!-- Clone Game Dialog -->
+    <Dialog.Root bind:open={showCloneModal}>
+      <Dialog.Content class="sm:max-w-[425px]">
+        <Dialog.Header>
+          <Dialog.Title>📋 Clone Game</Dialog.Title>
+          <Dialog.Description>
+            Create a new game using "{game?.name}" as a template. All words and
+            card types will be copied, but no players or scores.
+          </Dialog.Description>
+        </Dialog.Header>
+        <div class="grid gap-4 py-4">
+          <div class="space-y-2">
+            <Label for="cloneGameName">New Game Name</Label>
+            <Input
+              id="cloneGameName"
+              bind:value={cloneGameName}
+              placeholder="Enter name for the new game..."
+              maxlength="100"
+            />
+          </div>
+          <div
+            class="p-3 bg-blue-50 dark:bg-blue-950/50 rounded-lg border border-blue-200 dark:border-blue-800"
+          >
+            <p class="text-sm text-blue-800 dark:text-blue-200">
+              ℹ️ You'll be taken to the setup page where you can edit the words
+              and settings before starting the new game.
+            </p>
+          </div>
+        </div>
+        <Dialog.Footer>
+          <Button
+            variant="outline"
+            on:click={() => {
+              showCloneModal = false;
+              cloneGameName = "";
+            }}
+            disabled={cloneLoading}
+          >
+            Cancel
+          </Button>
+          <Button
+            on:click={handleCloneGame}
+            disabled={!cloneGameName.trim() || cloneLoading}
+          >
+            {cloneLoading ? "Creating..." : "Create Clone"}
           </Button>
         </Dialog.Footer>
       </Dialog.Content>

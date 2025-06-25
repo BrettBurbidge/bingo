@@ -7,6 +7,7 @@
     createGame,
     respondToInvite,
     deleteGame,
+    cloneGame,
   } from "$lib/client-games";
   import Button from "$lib/components/ui/button.svelte";
   import * as Card from "$lib/components/ui/card";
@@ -31,6 +32,10 @@
   let showDeleteConfirm = false;
   let gameToDelete: Game | null = null;
   let deleteLoading = false;
+  let showCloneModal = false;
+  let gameToClone: Game | null = null;
+  let cloneGameName = "";
+  let cloneLoading = false;
 
   onMount(async () => {
     if ($user) {
@@ -60,7 +65,11 @@
     if (!$user || !gameName.trim()) return;
 
     try {
-      const game = await createGame(gameName.trim(), $user.id, $user.email || '');
+      const game = await createGame(
+        gameName.trim(),
+        $user.id,
+        $user.email || ""
+      );
       gameName = "";
       showCreateGame = false;
       await loadData();
@@ -99,7 +108,9 @@
       console.log(result.message);
     } catch (error) {
       console.error("Error deleting game:", error);
-      alert(`Failed to delete game: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      alert(
+        `Failed to delete game: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
     } finally {
       deleteLoading = false;
     }
@@ -108,6 +119,44 @@
   function cancelDelete() {
     showDeleteConfirm = false;
     gameToDelete = null;
+  }
+
+  function confirmCloneGame(game: Game) {
+    gameToClone = game;
+    cloneGameName = `Copy of ${game.name}`;
+    showCloneModal = true;
+  }
+
+  async function handleCloneGame() {
+    if (!gameToClone || !$user || !cloneGameName.trim()) return;
+
+    try {
+      cloneLoading = true;
+      const result = await cloneGame(
+        gameToClone.id,
+        $user.id,
+        cloneGameName.trim()
+      );
+      showCloneModal = false;
+      gameToClone = null;
+      cloneGameName = "";
+      await loadData();
+      alert(result.message);
+      goto(`/game/${result.game.id}/setup`);
+    } catch (error) {
+      console.error("Error cloning game:", error);
+      alert(
+        `Failed to clone game: ${error instanceof Error ? error.message : "Unknown error"}`
+      );
+    } finally {
+      cloneLoading = false;
+    }
+  }
+
+  function cancelClone() {
+    showCloneModal = false;
+    gameToClone = null;
+    cloneGameName = "";
   }
 </script>
 
@@ -271,20 +320,26 @@
               <Card.Header class="pb-3">
                 <div class="flex items-start justify-between">
                   <div class="flex-1 min-w-0">
-                    <Card.Title class="text-lg font-semibold truncate">{game.name}</Card.Title>
+                    <Card.Title class="text-lg font-semibold truncate"
+                      >{game.name}</Card.Title
+                    >
                     <div class="flex items-center gap-2 mt-1">
                       <Badge
-                        variant={game.gameMasterId === $user?.id ? "default" : "secondary"}
+                        variant={game.gameMasterId === $user?.id
+                          ? "default"
+                          : "secondary"}
                         class="text-xs"
                       >
                         {game.gameMasterId === $user?.id ? "Master" : "Player"}
                       </Badge>
                       {#if game.publishedAt}
-                        <Badge variant="outline" class="text-xs">🌐 Public</Badge>
+                        <Badge variant="outline" class="text-xs"
+                          >🌐 Public</Badge
+                        >
                       {/if}
                     </div>
                   </div>
-                  <Badge 
+                  <Badge
                     variant={game.status === "ACTIVE" ? "default" : "secondary"}
                     class="ml-2 text-xs"
                   >
@@ -292,7 +347,7 @@
                   </Badge>
                 </div>
               </Card.Header>
-              
+
               <Card.Content class="pt-0">
                 <div class="text-sm text-muted-foreground mb-4">
                   {#if game.publishedAt}
@@ -303,14 +358,12 @@
                 </div>
 
                 <div class="space-y-2">
-                  <Button
-                    href="/game/{game.id}"
-                    class="w-full"
-                    size="sm"
-                  >
-                    {game.gameMasterId === $user?.id ? "Manage Game" : "View Game"}
+                  <Button href="/game/{game.id}" class="w-full" size="sm">
+                    {game.gameMasterId === $user?.id
+                      ? "Manage Game"
+                      : "View Game"}
                   </Button>
-                  
+
                   <div class="flex gap-2">
                     {#if game.publishedAt}
                       <Button
@@ -322,12 +375,40 @@
                         🔗 Public Link
                       </Button>
                     {/if}
+
+                    <!-- Edit button for game masters on active/completed games -->
+                    {#if game.gameMasterId === $user?.id && (game.status === "ACTIVE" || game.status === "COMPLETED")}
+                      <Button
+                        href="/game/{game.id}/setup?edit=true"
+                        variant="outline"
+                        size="sm"
+                        class="text-xs flex-1"
+                      >
+                        ✏️ Edit
+                      </Button>
+                    {/if}
+
+                    <!-- Clone button for games that have been set up (have word lists) -->
+                    {#if game.status !== "SETUP"}
+                      <Button
+                        on:click={() => confirmCloneGame(game)}
+                        variant="outline"
+                        size="sm"
+                        class="text-xs flex-1"
+                      >
+                        📋 Clone
+                      </Button>
+                    {/if}
+
                     {#if game.gameMasterId === $user?.id}
                       <Button
                         on:click={() => confirmDeleteGame(game)}
                         variant="outline"
                         size="sm"
-                        class="text-xs text-destructive hover:text-destructive hover:bg-destructive/10 {game.publishedAt ? '' : 'flex-1'}"
+                        class="text-xs text-destructive hover:text-destructive hover:bg-destructive/10 {game.publishedAt ||
+                        game.status !== 'SETUP'
+                          ? ''
+                          : 'flex-1'}"
                       >
                         🗑️ Delete
                       </Button>
@@ -391,7 +472,7 @@
         <div class="grid gap-4 py-4">
           <div class="bg-red-50 border border-red-200 rounded-md p-3">
             <p class="text-sm text-red-800">
-              <strong>Warning:</strong> This action cannot be undone. All game data, 
+              <strong>Warning:</strong> This action cannot be undone. All game data,
               participants, and scores will be permanently deleted.
             </p>
           </div>
@@ -404,12 +485,61 @@
           >
             Cancel
           </Button>
-          <Button 
+          <Button
             variant="destructive"
-            on:click={handleDeleteGame} 
+            on:click={handleDeleteGame}
             disabled={deleteLoading}
           >
             {deleteLoading ? "Deleting..." : "Delete Game"}
+          </Button>
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog.Root>
+
+    <!-- Clone Game Dialog -->
+    <Dialog.Root bind:open={showCloneModal}>
+      <Dialog.Content class="sm:max-w-[425px]">
+        <Dialog.Header>
+          <Dialog.Title>📋 Clone Game</Dialog.Title>
+          <Dialog.Description>
+            {#if gameToClone}
+              Create a new game using "{gameToClone.name}" as a template. All
+              words and card types will be copied, but no players or scores.
+            {/if}
+          </Dialog.Description>
+        </Dialog.Header>
+        <div class="grid gap-4 py-4">
+          <div class="space-y-2">
+            <Label for="cloneGameName">New Game Name</Label>
+            <Input
+              id="cloneGameName"
+              bind:value={cloneGameName}
+              placeholder="Enter name for the new game..."
+              maxlength={100}
+            />
+          </div>
+          <div
+            class="p-3 bg-blue-50 dark:bg-blue-950/50 rounded-lg border border-blue-200 dark:border-blue-800"
+          >
+            <p class="text-sm text-blue-800 dark:text-blue-200">
+              ℹ️ You'll be taken to the setup page where you can edit the words
+              and settings before starting the new game.
+            </p>
+          </div>
+        </div>
+        <Dialog.Footer>
+          <Button
+            variant="outline"
+            on:click={cancelClone}
+            disabled={cloneLoading}
+          >
+            Cancel
+          </Button>
+          <Button
+            on:click={handleCloneGame}
+            disabled={!cloneGameName.trim() || cloneLoading}
+          >
+            {cloneLoading ? "Creating..." : "Create Clone"}
           </Button>
         </Dialog.Footer>
       </Dialog.Content>

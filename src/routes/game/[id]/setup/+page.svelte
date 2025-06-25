@@ -3,7 +3,7 @@
   import { page } from "$app/stores";
   import { user } from "$lib/auth";
   import { goto } from "$app/navigation";
-  import { getGame, setupGame } from "$lib/client-games";
+  import { getGame, setupGame, editGame } from "$lib/client-games";
   import Button from "$lib/components/ui/button.svelte";
   import * as Card from "$lib/components/ui/card";
   import { Input } from "$lib/components/ui/input";
@@ -17,9 +17,14 @@
   let cardTypes: string[] = Array(24).fill("see"); // Default to "see" type
 
   $: gameId = $page.params.id;
+  $: isEditMode = $page.url.searchParams.get("edit") === "true";
+  $: pageTitle = isEditMode ? "Edit Game" : "Setup Game";
+  $: buttonText = isEditMode ? "Save Changes" : "Start Game";
 
   function updateCardType(index: number, type: string) {
-    cardTypes = cardTypes.map((currentType, i) => i === index ? type : currentType);
+    cardTypes = cardTypes.map((currentType, i) =>
+      i === index ? type : currentType
+    );
   }
 
   onMount(async () => {
@@ -39,10 +44,28 @@
         return;
       }
 
-      // Check if game is in setup phase
-      if (game.status !== "SETUP") {
-        goto(`/game/${gameId}`);
-        return;
+      // In edit mode, allow ACTIVE and COMPLETED games
+      // In setup mode, only allow SETUP games
+      if (isEditMode) {
+        if (game.status === "SETUP") {
+          // If trying to edit a game in setup, redirect to normal setup
+          goto(`/game/${gameId}/setup`);
+          return;
+        }
+      } else {
+        // Normal setup mode - only allow SETUP games
+        if (game.status !== "SETUP") {
+          goto(`/game/${gameId}`);
+          return;
+        }
+      }
+
+      // Pre-populate words and card types if they exist (e.g., from cloned game)
+      if (game.wordList && game.wordList.length === 24) {
+        words = [...game.wordList];
+      }
+      if (game.cardTypes && game.cardTypes.length === 24) {
+        cardTypes = [...game.cardTypes];
       }
     } catch (error) {
       console.error("Error loading game:", error);
@@ -64,11 +87,27 @@
 
     try {
       submitting = true;
-      await setupGame(gameId, filledWords, cardTypes, $user.id);
+
+      if (isEditMode) {
+        // Edit existing game
+        await editGame(gameId, filledWords, cardTypes, $user.id);
+        alert("Game updated successfully!");
+      } else {
+        // Setup new game
+        await setupGame(gameId, filledWords, cardTypes, $user.id);
+      }
+
       goto(`/game/${gameId}`);
     } catch (error) {
-      console.error("Error setting up game:", error);
-      alert("Failed to setup game. Please try again.");
+      console.error(
+        isEditMode ? "Error editing game:" : "Error setting up game:",
+        error
+      );
+      alert(
+        isEditMode
+          ? "Failed to edit game. Please try again."
+          : "Failed to setup game. Please try again."
+      );
     } finally {
       submitting = false;
     }
@@ -102,30 +141,30 @@
       "Lost luggage",
     ];
     const sampleTypes = [
-      "see",      // See a dolphin
-      "action",   // Pool game
-      "action",   // Formal dinner
-      "action",   // Deck party
-      "action",   // Spa visit
-      "action",   // Karaoke night
-      "action",   // Buffet meal
-      "action",   // Sunset photo
-      "see",      // New friend
-      "action",   // Room service
-      "action",   // Dancing
-      "action",   // Shore excursion
-      "action",   // Mini golf
-      "action",   // Art auction
-      "action",   // Trivia night
-      "see",      // Ocean view
-      "action",   // Captain's dinner
-      "action",   // Live show
-      "action",   // Gym workout
-      "action",   // Wine tasting
-      "see",      // Seasick
-      "action",   // Late checkout
-      "see",      // Room upgrade
-      "see",      // Lost luggage
+      "see", // See a dolphin
+      "action", // Pool game
+      "action", // Formal dinner
+      "action", // Deck party
+      "action", // Spa visit
+      "action", // Karaoke night
+      "action", // Buffet meal
+      "action", // Sunset photo
+      "see", // New friend
+      "action", // Room service
+      "action", // Dancing
+      "action", // Shore excursion
+      "action", // Mini golf
+      "action", // Art auction
+      "action", // Trivia night
+      "see", // Ocean view
+      "action", // Captain's dinner
+      "action", // Live show
+      "action", // Gym workout
+      "action", // Wine tasting
+      "see", // Seasick
+      "action", // Late checkout
+      "see", // Room upgrade
+      "see", // Lost luggage
     ];
     words = [...sampleWords];
     cardTypes = [...sampleTypes];
@@ -158,9 +197,13 @@
       class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
     >
       <div>
-        <h1 class="text-3xl font-bold tracking-tight">Setup: {game.name}</h1>
+        <h1 class="text-3xl font-bold tracking-tight">
+          {pageTitle}: {game.name}
+        </h1>
         <p class="text-muted-foreground">
-          Enter 24 words or phrases for your bingo board
+          {isEditMode
+            ? "Edit the words and phrases for your bingo board"
+            : "Enter 24 words or phrases for your bingo board"}
         </p>
       </div>
       <div class="flex gap-2">
@@ -176,25 +219,48 @@
         <Card.Title>Bingo Words & Phrases</Card.Title>
         <Card.Description>
           Each player will get a randomized board with these 24 items plus a
-          FREE SPACE in the center. Choose whether each item is something to "see" or an "action" to do.
+          FREE SPACE in the center. Choose whether each item is something to
+          "see" or an "action" to do.
         </Card.Description>
       </Card.Header>
       <Card.Content class="space-y-6">
+        <!-- Edit Mode Warning -->
+        {#if isEditMode}
+          <div
+            class="p-4 bg-orange-50 dark:bg-orange-950/50 rounded-lg border border-orange-200 dark:border-orange-800"
+          >
+            <p class="text-sm text-orange-800 dark:text-orange-200">
+              ⚠️ <strong>Editing Active Game:</strong> Changes will be reflected
+              in the game master view, but players who have already joined will keep
+              their existing randomized boards. New players joining after your changes
+              will get boards with the updated words.
+            </p>
+          </div>
+        {/if}
+
         <!-- Card Type Legend -->
         <div class="flex gap-4 p-4 bg-muted rounded-lg">
           <div class="flex items-center gap-2">
-            <div class="flex items-center justify-center w-6 h-6 bg-blue-100 dark:bg-blue-900 rounded text-blue-600 dark:text-blue-400 text-sm">
+            <div
+              class="flex items-center justify-center w-6 h-6 bg-blue-100 dark:bg-blue-900 rounded text-blue-600 dark:text-blue-400 text-sm"
+            >
               👁️
             </div>
             <span class="text-sm font-medium">See</span>
-            <span class="text-sm text-muted-foreground">- Something to spot or observe</span>
+            <span class="text-sm text-muted-foreground"
+              >- Something to spot or observe</span
+            >
           </div>
           <div class="flex items-center gap-2">
-            <div class="flex items-center justify-center w-6 h-6 bg-green-100 dark:bg-green-900 rounded text-green-600 dark:text-green-400 text-sm">
+            <div
+              class="flex items-center justify-center w-6 h-6 bg-green-100 dark:bg-green-900 rounded text-green-600 dark:text-green-400 text-sm"
+            >
               ⚡
             </div>
             <span class="text-sm font-medium">Action</span>
-            <span class="text-sm text-muted-foreground">- Something to do or participate in</span>
+            <span class="text-sm text-muted-foreground"
+              >- Something to do or participate in</span
+            >
           </div>
         </div>
 
@@ -202,17 +268,20 @@
           {#each words as word, index}
             <div class="space-y-3 p-4 border rounded-lg">
               <div class="space-y-2">
-                <label for={`word-${index}`} class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                <label
+                  for={`word-${index}`}
+                  class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
                   Item {index + 1}
                 </label>
                 <Input
                   id={`word-${index}`}
                   bind:value={words[index]}
                   placeholder="Enter word or phrase..."
-                  maxlength="50"
+                  maxlength={50}
                 />
               </div>
-              
+
               <div class="space-y-2">
                 <label class="text-sm font-medium">Card Type</label>
                 <div class="flex gap-4">
@@ -221,29 +290,45 @@
                       type="radio"
                       name={`card-type-${index}`}
                       value="see"
-                      checked={cardTypes[index] === 'see'}
-                      on:change={() => updateCardType(index, 'see')}
+                      checked={cardTypes[index] === "see"}
+                      on:change={() => updateCardType(index, "see")}
                       class="sr-only"
                     />
-                    <div class="flex items-center gap-2 px-3 py-2 rounded-md border-2 transition-all {cardTypes[index] === 'see' ? 'border-blue-500 bg-blue-50 dark:bg-blue-950' : 'border-gray-200 hover:border-blue-300'}">
-                      <div class="flex items-center justify-center w-5 h-5 bg-blue-100 dark:bg-blue-900 rounded text-blue-600 dark:text-blue-400 text-xs">
+                    <div
+                      class="flex items-center gap-2 px-3 py-2 rounded-md border-2 transition-all {cardTypes[
+                        index
+                      ] === 'see'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950'
+                        : 'border-gray-200 hover:border-blue-300'}"
+                    >
+                      <div
+                        class="flex items-center justify-center w-5 h-5 bg-blue-100 dark:bg-blue-900 rounded text-blue-600 dark:text-blue-400 text-xs"
+                      >
                         👁️
                       </div>
                       <span class="text-sm font-medium">See</span>
                     </div>
                   </label>
-                  
+
                   <label class="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
                       name={`card-type-${index}`}
                       value="action"
-                      checked={cardTypes[index] === 'action'}
-                      on:change={() => updateCardType(index, 'action')}
+                      checked={cardTypes[index] === "action"}
+                      on:change={() => updateCardType(index, "action")}
                       class="sr-only"
                     />
-                    <div class="flex items-center gap-2 px-3 py-2 rounded-md border-2 transition-all {cardTypes[index] === 'action' ? 'border-green-500 bg-green-50 dark:bg-green-950' : 'border-gray-200 hover:border-green-300'}">
-                      <div class="flex items-center justify-center w-5 h-5 bg-green-100 dark:bg-green-900 rounded text-green-600 dark:text-green-400 text-xs">
+                    <div
+                      class="flex items-center gap-2 px-3 py-2 rounded-md border-2 transition-all {cardTypes[
+                        index
+                      ] === 'action'
+                        ? 'border-green-500 bg-green-50 dark:bg-green-950'
+                        : 'border-gray-200 hover:border-green-300'}"
+                    >
+                      <div
+                        class="flex items-center justify-center w-5 h-5 bg-green-100 dark:bg-green-900 rounded text-green-600 dark:text-green-400 text-xs"
+                      >
                         ⚡
                       </div>
                       <span class="text-sm font-medium">Action</span>
@@ -269,7 +354,11 @@
             on:click={handleSetup}
             disabled={submitting || words.some((w) => !w.trim())}
           >
-            {submitting ? "Setting up..." : "Start Game"}
+            {submitting
+              ? isEditMode
+                ? "Saving..."
+                : "Setting up..."
+              : buttonText}
           </Button>
         </div>
       </Card.Content>

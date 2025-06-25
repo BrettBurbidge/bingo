@@ -449,3 +449,50 @@ export async function deleteGame(
 
   return response.json();
 }
+
+export async function cloneGame(
+  gameId: string,
+  userId: string,
+  newGameName: string
+): Promise<{ success: boolean; game: Game; message: string }> {
+  const response = await fetch(`/api/games/${gameId}/clone`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ userId, newGameName }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to clone game");
+  }
+
+  return response.json();
+}
+
+export async function editGame(
+  gameId: string,
+  wordList: string[],
+  cardTypes: string[],
+  gameMasterId: string
+): Promise<{ success: boolean; game: Game; message: string }> {
+  const response = await fetch(`/api/games/${gameId}/edit`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      wordList,
+      cardTypes,
+      gameMasterId,
+    }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to edit game");
+  }
+
+  return response.json();
+}
