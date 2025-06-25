@@ -15,6 +15,14 @@
     unpublishGame,
     type GameInviteWithRelations,
   } from "$lib/client-games";
+  import {
+    inviteGameMaster,
+    getGameMasterData,
+    isUserGameCreatorOrMaster,
+    resendGameMasterInvite,
+    type GameMasterData,
+    type GameMaster,
+  } from "$lib/game-masters";
   import Button from "$lib/components/ui/button.svelte";
   import * as Card from "$lib/components/ui/card";
   import * as Dialog from "$lib/components/ui/dialog";
@@ -47,18 +55,24 @@
   let userParticipant: GameParticipantWithUser | null = null;
   let allParticipants: AllParticipants[] = [];
   let gameInvites: GameInviteWithRelations[] = [];
+  let gameMasterData: GameMasterData | null = null;
   let loading = true;
   let showInviteModal = false;
+  let showGameMasterInviteModal = false;
   let showInviteManagement = false;
   let inviteEmail = "";
+  let gameMasterInviteEmail = "";
   let inviteLoading = false;
+  let gameMasterInviteLoading = false;
   let resendingInviteId: string | null = null;
+  let resendingGameMasterInviteId: string | null = null;
   let publishLoading = false;
   let showShareModal = false;
 
   $: gameId = $page.params.id;
   $: sortedParticipants = allParticipants.sort((a, b) => b.score - a.score);
-  $: isGameMaster = game?.gameMasterId === $user?.id;
+  $: isGameCreator = game?.gameMasterId === $user?.id;
+  $: isGameMaster = game?.gameMasterId === $user?.id; // Will update this after loading game master data
   $: isPublished = !!game?.publishedAt;
   
   let publicUrl = "";
@@ -82,6 +96,7 @@
   // Reactive statement to load invites when game data is loaded and user is game master
   $: if (game && isGameMaster && $user) {
     loadGameInvites();
+    loadGameMasterData();
   }
 
   async function loadGameData() {
@@ -105,7 +120,7 @@
 
       const guestParticipants: AllParticipants[] = (gameData.guestParticipants || []).map(p => ({
         id: p.id,
-        name: p.guestName,
+        name: p.guestName || p.email.split('@')[0], // Fallback to email prefix if no display name
         score: p.score,
         hasWon: p.hasWon,
         isGuest: true
@@ -119,21 +134,7 @@
         return;
       }
 
-      // If game is active and user is not a participant, try to join
-      if (game.status === "ACTIVE" && !userParticipant && $user) {
-        try {
-          const newParticipant = await joinGame(
-            gameId, 
-            $user.id, 
-            $user.email, 
-            $user.user_metadata?.display_name
-          );
-          participants = [...participants, newParticipant];
-          userParticipant = newParticipant;
-        } catch (error) {
-          console.error("Error joining game:", error);
-        }
-      }
+      // Auto-join is removed - admins must manually join if they want to play
     } catch (error) {
       console.error("Error loading game data:", error);
     } finally {
@@ -148,6 +149,16 @@
       }
     } catch (error) {
       console.error("Error loading game invites:", error);
+    }
+  }
+
+  async function loadGameMasterData() {
+    try {
+      if ($user && isGameCreator) {
+        gameMasterData = await getGameMasterData(gameId, $user.id);
+      }
+    } catch (error) {
+      console.error("Error loading game master data:", error);
     }
   }
 
@@ -204,6 +215,32 @@
     }
   }
 
+  async function handleGameMasterInvite() {
+    if (!gameMasterInviteEmail.trim() || !$user) return;
+
+    try {
+      gameMasterInviteLoading = true;
+      const result = await inviteGameMaster(gameId, gameMasterInviteEmail.trim(), $user.id) as any;
+      gameMasterInviteEmail = "";
+      showGameMasterInviteModal = false;
+      await loadGameMasterData();
+      
+      // Show feedback about email status
+      if (result.emailSent) {
+        console.log("✅ Game master invite sent and email delivered successfully!");
+        alert("Game master invitation sent successfully!");
+      } else {
+        console.warn("⚠️ Game master invite created but email failed to send:", result.emailError);
+        alert(`Game master invite created but email failed to send: ${result.emailError || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error("Error sending game master invite:", error);
+      alert(`Failed to send game master invite: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      gameMasterInviteLoading = false;
+    }
+  }
+
   async function handleDeleteInvite(inviteId: string) {
     if (!$user || !isGameMaster) return;
 
@@ -235,6 +272,29 @@
       alert(`Failed to resend invite: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
       resendingInviteId = null;
+    }
+  }
+
+  async function handleResendGameMasterInvite(inviteId: string) {
+    if (!$user || !isGameMaster) return;
+
+    try {
+      resendingGameMasterInviteId = inviteId;
+      const result = await resendGameMasterInvite(inviteId, $user.id);
+      
+      // Show feedback about email status
+      if (result.emailSent) {
+        console.log("✅ Game master invite resent successfully!");
+        alert("Game master invitation email resent successfully!");
+      } else {
+        console.warn("⚠️ Failed to resend game master email:", result.emailError);
+        alert(`Failed to resend game master email: ${result.emailError || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error("Error resending game master invite:", error);
+      alert(`Failed to resend game master invite: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      resendingGameMasterInviteId = null;
     }
   }
 
@@ -356,9 +416,9 @@
           </p>
         </div>
         <div class="flex flex-col gap-2 mt-4">
-          {#if isGameMaster && game.status === "ACTIVE"}
-            <Button on:click={() => (showInviteModal = true)} size="sm" class="w-full">
-              📧 Invite Players
+          {#if isGameCreator && game.status === "ACTIVE"}
+            <Button on:click={() => (showGameMasterInviteModal = true)} size="sm" class="w-full">
+              👑 Invite Game Masters
             </Button>
             {#if isPublished}
               <Button on:click={() => (showShareModal = true)} size="sm" class="w-full">
@@ -405,9 +465,9 @@
           </div>
         </div>
         <div class="flex gap-2">
-          {#if isGameMaster && game.status === "ACTIVE"}
-            <Button on:click={() => (showInviteModal = true)}>
-              Invite Players
+          {#if isGameCreator && game.status === "ACTIVE"}
+            <Button on:click={() => (showGameMasterInviteModal = true)}>
+              👑 Invite Game Masters
             </Button>
             {#if isPublished}
               <Button on:click={() => (showShareModal = true)}>
@@ -753,17 +813,117 @@
       </Card.Root>
     </div>
 
+    <!-- Game Master Management (Game Creator Only) -->
+    {#if isGameCreator && gameMasterData}
+      <div class="space-y-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-2xl font-semibold tracking-tight">Game Masters</h2>
+            <p class="text-muted-foreground">
+              Manage who can help administer this game
+            </p>
+          </div>
+          <Button on:click={() => (showGameMasterInviteModal = true)} size="sm">
+            👑 Invite Game Master
+          </Button>
+        </div>
+
+        <!-- Current Game Masters -->
+        {#if gameMasterData.gameMasters.length > 0}
+          <Card.Root>
+            <Card.Header>
+              <Card.Title>Current Game Masters</Card.Title>
+              <Card.Description>Users who can manage this game</Card.Description>
+            </Card.Header>
+            <Card.Content>
+              <div class="space-y-3">
+                <!-- Original Game Creator -->
+                <div class="flex items-center justify-between p-3 rounded-lg bg-primary/5">
+                  <div>
+                    <div class="font-medium">{game?.gameMaster.displayName || game?.gameMaster.email}</div>
+                    <div class="text-sm text-muted-foreground">Game Creator</div>
+                  </div>
+                  <Badge variant="default">Owner</Badge>
+                </div>
+                
+                <!-- Additional Game Masters -->
+                {#each gameMasterData.gameMasters as gameMaster}
+                  <div class="flex items-center justify-between p-3 rounded-lg border">
+                    <div>
+                      <div class="font-medium">{gameMaster.user.displayName || gameMaster.user.email}</div>
+                      <div class="text-sm text-muted-foreground">
+                        Added {new Date(gameMaster.createdAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <Badge variant="secondary">Game Master</Badge>
+                  </div>
+                {/each}
+              </div>
+            </Card.Content>
+          </Card.Root>
+        {/if}
+
+        <!-- Pending Game Master Invites -->
+        {#if gameMasterData.invites.length > 0}
+          <Card.Root>
+            <Card.Header>
+              <Card.Title>Pending Invitations</Card.Title>
+              <Card.Description>Game master invites awaiting response</Card.Description>
+            </Card.Header>
+            <Card.Content>
+              <div class="space-y-3">
+                {#each gameMasterData.invites as invite}
+                  <div class="flex items-center justify-between p-3 rounded-lg border">
+                    <div class="flex-1">
+                      <div class="font-medium">{invite.email}</div>
+                      <div class="text-sm text-muted-foreground">
+                        Invited {new Date(invite.createdAt).toLocaleDateString()}
+                        {#if invite.status === "PENDING"}
+                          • Expires {new Date(invite.expiresAt).toLocaleDateString()}
+                          <br />
+                          <span class="text-xs">Click "Resend" to send another email reminder</span>
+                        {/if}
+                      </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <Badge 
+                        variant={invite.status === "PENDING" ? "secondary" : 
+                                 invite.status === "ACCEPTED" ? "default" : "destructive"}
+                      >
+                        {invite.status}
+                      </Badge>
+                      {#if invite.status === "PENDING"}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          on:click={() => handleResendGameMasterInvite(invite.id)}
+                          disabled={resendingGameMasterInviteId === invite.id}
+                          class="text-orange-600 hover:text-orange-700"
+                        >
+                          {resendingGameMasterInviteId === invite.id ? "Resending..." : "👑 Resend"}
+                        </Button>
+                      {/if}
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </Card.Content>
+          </Card.Root>
+        {/if}
+      </div>
+    {/if}
+
     <!-- Invite Management (Game Master Only) -->
     {#if isGameMaster && gameInvites.length > 0}
       <div class="space-y-6">
         <div class="flex items-center justify-between">
           <div>
-            <h2 class="text-2xl font-semibold tracking-tight">Sent Invites</h2>
+            <h2 class="text-2xl font-semibold tracking-tight">Player Invites</h2>
             <p class="text-muted-foreground">
-              You have sent {gameInvites.length} invitation{gameInvites.length === 1 ? "" : "s"} for this game
+              You have sent {gameInvites.length} player invitation{gameInvites.length === 1 ? "" : "s"} for this game
             </p>
           </div>
-          {#if game.status === "ACTIVE"}
+          {#if game?.status === "ACTIVE"}
             <Button on:click={() => (showInviteModal = true)} size="sm">
               Send Another Invite
             </Button>
@@ -844,13 +1004,58 @@
       </div>
     {/if}
 
+    <!-- Game Master Invite Dialog -->
+    <Dialog.Root bind:open={showGameMasterInviteModal}>
+      <Dialog.Content class="sm:max-w-[425px]">
+        <Dialog.Header>
+          <Dialog.Title>👑 Invite Game Master</Dialog.Title>
+          <Dialog.Description>
+            Invite another user to help manage "{game?.name}". Game masters can publish/unpublish games and invite other game masters.
+          </Dialog.Description>
+        </Dialog.Header>
+        <div class="grid gap-4 py-4">
+          <div class="space-y-2">
+            <Label for="gameMasterInviteEmail">Email Address</Label>
+            <Input
+              id="gameMasterInviteEmail"
+              bind:value={gameMasterInviteEmail}
+              placeholder="admin@example.com"
+              type="email"
+            />
+          </div>
+          <div class="p-3 bg-orange-50 dark:bg-orange-950/50 rounded-lg border border-orange-200 dark:border-orange-800">
+            <p class="text-sm text-orange-800 dark:text-orange-200">
+              ⚠️ Game masters have the same permissions as you, including the ability to invite other game masters.
+            </p>
+          </div>
+        </div>
+        <Dialog.Footer>
+          <Button
+            variant="outline"
+            on:click={() => {
+              showGameMasterInviteModal = false;
+              gameMasterInviteEmail = "";
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            on:click={handleGameMasterInvite}
+            disabled={!gameMasterInviteEmail.trim() || gameMasterInviteLoading}
+          >
+            {gameMasterInviteLoading ? "Sending..." : "Send Invite"}
+          </Button>
+        </Dialog.Footer>
+      </Dialog.Content>
+    </Dialog.Root>
+
     <!-- Invite Dialog -->
     <Dialog.Root bind:open={showInviteModal}>
       <Dialog.Content class="sm:max-w-[425px]">
         <Dialog.Header>
           <Dialog.Title>Invite Players</Dialog.Title>
           <Dialog.Description>
-            Invite friends to join "{game.name}" by entering their email
+            Invite friends to join "{game?.name}" by entering their email
             address.
           </Dialog.Description>
         </Dialog.Header>

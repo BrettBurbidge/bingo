@@ -18,6 +18,7 @@
   import ScoringRules from "$lib/components/ScoringRules.svelte";
   import { uploadPhoto } from "$lib/storage";
   import "$lib/setup-storage";
+  import { saveGuestSession, loadGuestSession, clearGuestSession } from "$lib/cookies";
   import type { GuestParticipant } from "@prisma/client";
 
   type AllParticipants = {
@@ -81,16 +82,20 @@
 
       allParticipants = [...authParticipants, ...guestParticipants];
 
-      // Check if user is already joined (using localStorage to remember)
-      const savedGuestEmail = localStorage.getItem(`guest-email-${gameId}`);
-      if (savedGuestEmail) {
-        const existingGuest = gameData.guestParticipants.find(p => p.email === savedGuestEmail);
+      // Check if user is already joined (using cookies/localStorage to remember)
+      const savedSession = loadGuestSession(gameId);
+      if (savedSession) {
+        const existingGuest = gameData.guestParticipants.find(p => p.email === savedSession.email);
         if (existingGuest) {
           guestParticipant = existingGuest;
+          guestEmail = savedSession.email;
+          guestDisplayName = savedSession.displayName;
           showJoinModal = false;
         } else {
-          // Guest was removed, clear localStorage
-          localStorage.removeItem(`guest-email-${gameId}`);
+          // Guest was removed but we have their info - pre-fill the form
+          guestEmail = savedSession.email;
+          guestDisplayName = savedSession.displayName;
+          // Keep the session data for potential re-joining, don't clear it yet
         }
       }
 
@@ -126,8 +131,8 @@
       const newGuest = await joinGameAsGuest(gameId, guestEmail.trim(), displayName);
       guestParticipant = newGuest;
       
-      // Save guest email to localStorage for easier rejoining
-      localStorage.setItem(`guest-email-${gameId}`, guestEmail.trim());
+      // Save guest session for easier rejoining across tabs and sessions
+      saveGuestSession(gameId, guestEmail.trim(), displayName);
       
       showJoinModal = false;
       await loadGameData();
@@ -528,6 +533,36 @@
     
     return null;
   }
+
+  function handleLeaveGame() {
+    if (confirm("Are you sure you want to leave this game? Your session will be cleared and you'll need to rejoin.")) {
+      clearGuestSession(gameId);
+      guestParticipant = null;
+      guestEmail = "";
+      guestDisplayName = "";
+      showJoinModal = true;
+    }
+  }
+
+  function hasPhotos(participantId: string): boolean {
+    // Check guest participants
+    const guestParticipant = game?.guestParticipants.find(p => p.id === participantId);
+    if (guestParticipant?.photoUrls) {
+      return guestParticipant.photoUrls.some(url => url && url.trim() !== "");
+    }
+    
+    // Check authenticated participants
+    const authParticipant = game?.participants.find(p => p.id === participantId);
+    if (authParticipant?.photoUrls) {
+      return authParticipant.photoUrls.some(url => url && url.trim() !== "");
+    }
+    
+    return false;
+  }
+
+  function handleViewPhotos(participantId: string) {
+    goto(`/play/${gameId}/gallery/${participantId}`);
+  }
 </script>
 
 <svelte:head>
@@ -544,6 +579,17 @@
       </Dialog.Description>
     </Dialog.Header>
     <div class="space-y-4">
+      {#if guestEmail && guestDisplayName}
+        <div class="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+          <div class="flex items-center gap-2">
+            <div class="text-blue-600 dark:text-blue-400">💾</div>
+            <div class="text-sm text-blue-700 dark:text-blue-300">
+              <strong>Welcome back!</strong> Your previous session info has been restored.
+            </div>
+          </div>
+        </div>
+      {/if}
+      
       <div class="space-y-2">
         <Label for="guest-email">Email</Label>
         <Input
@@ -600,7 +646,22 @@
       <!-- Mobile Header -->
       <div class="lg:hidden">
         <div class="text-center space-y-2">
-          <h1 class="text-2xl font-bold tracking-tight">{game.name}</h1>
+          <div class="flex items-center justify-between">
+            <div class="w-16"> <!-- Spacer for centering --> </div>
+            <h1 class="text-2xl font-bold tracking-tight">{game.name}</h1>
+            <div class="w-16 flex justify-end">
+              {#if guestParticipant}
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  on:click={handleLeaveGame}
+                  class="text-xs p-2 h-8 text-muted-foreground hover:text-destructive"
+                >
+                  Leave
+                </Button>
+              {/if}
+            </div>
+          </div>
           <div class="flex items-center justify-center gap-2">
             <Badge variant="default">
               LIVE GAME
@@ -623,6 +684,16 @@
             <Badge variant="default">LIVE GAME</Badge>
           </div>
         </div>
+        {#if guestParticipant}
+          <Button 
+            variant="outline" 
+            size="sm" 
+            on:click={handleLeaveGame}
+            class="text-muted-foreground hover:text-destructive hover:border-destructive"
+          >
+            Leave Game
+          </Button>
+        {/if}
       </div>
     </div>
 
@@ -813,9 +884,21 @@
                       </div>
                     </div>
                   </div>
-                  <div class="text-right">
-                    <div class="font-bold">{participant.score}</div>
-                    <div class="text-xs text-muted-foreground">points</div>
+                  <div class="flex items-center gap-2">
+                    {#if hasPhotos(participant.id)}
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        on:click={() => handleViewPhotos(participant.id)}
+                        class="text-xs px-2 py-1 h-7"
+                      >
+                        📸 Photos
+                      </Button>
+                    {/if}
+                    <div class="text-right">
+                      <div class="font-bold">{participant.score}</div>
+                      <div class="text-xs text-muted-foreground">points</div>
+                    </div>
                   </div>
                 </div>
               {/each}
@@ -998,9 +1081,21 @@
                           </div>
                         </div>
                       </div>
-                      <div class="text-right">
-                        <div class="font-bold">{participant.score}</div>
-                        <div class="text-xs text-muted-foreground">points</div>
+                      <div class="flex items-center gap-3">
+                        {#if hasPhotos(participant.id)}
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            on:click={() => handleViewPhotos(participant.id)}
+                            class="text-xs"
+                          >
+                            📸 View Pictures
+                          </Button>
+                        {/if}
+                        <div class="text-right">
+                          <div class="font-bold">{participant.score}</div>
+                          <div class="text-xs text-muted-foreground">points</div>
+                        </div>
                       </div>
                     </div>
                   {/each}

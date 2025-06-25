@@ -9,16 +9,19 @@ datasource db {
 }
 
 model Profile {
-  id               String            @id @db.Uuid
-  email            String            @unique
-  displayName      String?           @map("display_name")
-  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  invitesSent      GameInvite[]      @relation("InvitedBy")
-  invitesReceived  GameInvite[]      @relation("InvitedUser")
-  gameParticipants GameParticipant[]
-  gamesCreated     Game[]            @relation("GameMaster")
-  gamesWon         Game[]            @relation("GameWinner")
+  id                        String             @id @db.Uuid
+  email                     String             @unique
+  displayName               String?            @map("display_name")
+  createdAt                 DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt                 DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  invitesSent               GameInvite[]       @relation("InvitedBy")
+  invitesReceived           GameInvite[]       @relation("InvitedUser")
+  gameMasterInvitesSent     GameMasterInvite[] @relation("GameMasterInvitedBy")
+  gameMasterInvitesReceived GameMasterInvite[] @relation("GameMasterInvitedUser")
+  gameParticipants          GameParticipant[]
+  gamesCreated              Game[]             @relation("GameMaster")
+  gamesWon                  Game[]             @relation("GameWinner")
+  gameMasters               GameMaster[] // Games where this user is a game master
 
   @@map("profiles")
 }
@@ -38,8 +41,10 @@ model Game {
   wildcardSquare    Int?               @map("wildcard_square") // Random wildcard square with 2x multiplier
   squareMarkHistory Json[]             @default([]) @map("square_mark_history") // Track who marked what when
   invites           GameInvite[]
+  gameMasterInvites GameMasterInvite[]
   participants      GameParticipant[]
   guestParticipants GuestParticipant[]
+  gameMasters       GameMaster[] // Multiple game masters
   gameMaster        Profile            @relation("GameMaster", fields: [gameMasterId], references: [id], onDelete: Cascade)
   winner            Profile?           @relation("GameWinner", fields: [winnerId], references: [id])
 
@@ -101,6 +106,43 @@ model GameInvite {
 
   @@unique([gameId, email])
   @@map("game_invites")
+}
+
+model GameMaster {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  gameId    String   @map("game_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  user      Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, userId])
+  @@map("game_masters")
+}
+
+model GameMasterInvite {
+  id        String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  gameId    String                 @map("game_id") @db.Uuid
+  userId    String?                @map("user_id") @db.Uuid
+  invitedBy String                 @map("invited_by") @db.Uuid
+  status    GameMasterInviteStatus @default(PENDING)
+  createdAt DateTime               @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  email     String                 @map("email")
+  expiresAt DateTime               @map("expires_at") @db.Timestamptz(6)
+  token     String                 @unique @default(dbgenerated("gen_random_uuid()"))
+  game      Game                   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  inviter   Profile                @relation("GameMasterInvitedBy", fields: [invitedBy], references: [id], onDelete: Cascade)
+  user      Profile?               @relation("GameMasterInvitedUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([gameId, email])
+  @@map("game_master_invites")
+}
+
+enum GameMasterInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
 }
 
 enum GameInviteStatus {

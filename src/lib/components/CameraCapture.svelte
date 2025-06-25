@@ -177,13 +177,10 @@
       {:else}
         <!-- Options -->
         <div class="space-y-3">
-          <Button on:click={startCamera} class="w-full">
-            📷 Take Photo
-          </Button>
           
           <div class="relative">
             <Button variant="outline" class="w-full" on:click={() => fileInput?.click()}>
-              📁 Upload Photo
+              📁 Add Photo
             </Button>
             <input
               bind:this={fileInput}

@@ -184,7 +184,14 @@
               </div>
 
               <div class="space-y-2">
-                <Label for="password">Password</Label>
+                <div class="flex items-center justify-between">
+                  <Label for="password">Password</Label>
+                  {#if isLogin}
+                    <Button variant="link" href="/forgot-password" class="p-0 h-auto text-xs">
+                      Forgot password?
+                    </Button>
+                  {/if}
+                </div>
                 <Input
                   id="password"
                   name="password"
