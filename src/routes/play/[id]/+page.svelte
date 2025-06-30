@@ -823,37 +823,8 @@
       </div>
     </div>
 
-    <!-- Winner Announcement -->
+    <!-- Winner announcement removed - games now use leaderboard-based scoring -->
     <div class="print:hidden">
-      {#if game.status === "COMPLETED"}
-        {@const winner = sortedParticipants.find((p) => p.hasWon)}
-        {#if winner}
-          <Card.Root
-            class="border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950"
-          >
-            <Card.Content class="pt-6">
-              <div class="flex items-center gap-4">
-                <div class="text-4xl">🏆</div>
-                <div>
-                  <h2
-                    class="text-2xl font-bold text-yellow-800 dark:text-yellow-200"
-                  >
-                    We Have a Winner!
-                  </h2>
-                  <p class="text-yellow-700 dark:text-yellow-300">
-                    🎉 Congratulations to <strong>{winner.name}</strong> for getting
-                    5 in a row first!
-                  </p>
-                  <p class="text-sm text-yellow-600 dark:text-yellow-400 mt-2">
-                    ✨ Feel free to keep playing and complete your board!
-                  </p>
-                </div>
-              </div>
-            </Card.Content>
-          </Card.Root>
-        {/if}
-      {/if}
-
       {#if !isJoined && game.status === "COMPLETED"}
         <!-- View-only message for completed games -->
         <Card.Root
@@ -1090,8 +1061,7 @@
               {#if guestParticipant}
                 Your Bingo Board
               {:else if game?.status === "COMPLETED"}
-                {@const winner = sortedParticipants.find((p) => p.hasWon)}
-                {winner ? `${winner.name}'s Winning Board` : "Bingo Board"}
+                Final Board
               {:else}
                 Bingo Board
               {/if}
@@ -1120,8 +1090,7 @@
                         {isWildcard
                       ? 'border-purple-400 bg-purple-50 dark:bg-purple-950'
                       : ''}
-                        {game?.status === 'COMPLETED' &&
-                    sortedParticipants.some((p) => p.hasWon)
+                        {game?.status === 'COMPLETED'
                       ? 'cursor-not-allowed opacity-75'
                       : ''}"
                     on:click={() => handleCellClick(row * 5 + col)}
@@ -1236,9 +1205,7 @@
                         {:else}
                           <span>🔐 Player</span>
                         {/if}
-                        {#if participant.hasWon}
-                          <span class="text-yellow-600">🏆 Winner</span>
-                        {/if}
+                        <!-- Winner badges removed - leaderboard determines ranking -->
                       </div>
                     </div>
                   </div>
@@ -1290,14 +1257,14 @@
             <Card.Content class="pt-6">
               <div class="flex items-center justify-between">
                 <div class="text-sm font-medium text-muted-foreground">
-                  {guestParticipant ? "Your Rank" : "Winner"}
+                  {guestParticipant ? "Your Rank" : "Leader"}
                 </div>
                 <div class="text-2xl font-bold">
                   {#if guestParticipant}
                     🏆 #{getUserRank(guestParticipant.id)}
                   {:else}
-                    {@const winner = sortedParticipants.find((p) => p.hasWon)}
-                    {winner ? `🏆 ${winner.name}` : "🏆 N/A"}
+                    {@const leader = sortedParticipants[0]}
+                    {leader ? `🏆 ${leader.name}` : "🏆 N/A"}
                   {/if}
                 </div>
               </div>
@@ -1339,8 +1306,7 @@
                   {#if guestParticipant}
                     Your Bingo Board
                   {:else if game?.status === "COMPLETED"}
-                    {@const winner = sortedParticipants.find((p) => p.hasWon)}
-                    {winner ? `${winner.name}'s Winning Board` : "Bingo Board"}
+                    Final Board
                   {:else}
                     Bingo Board
                   {/if}
@@ -1371,8 +1337,7 @@
                           {isWildcard
                           ? 'border-purple-400 bg-purple-50 dark:bg-purple-950'
                           : ''}
-                          {game?.status === 'COMPLETED' &&
-                        sortedParticipants.some((p) => p.hasWon)
+                          {game?.status === 'COMPLETED'
                           ? 'cursor-not-allowed opacity-75'
                           : ''}"
                         on:click={() => handleCellClick(row * 5 + col)}
@@ -1498,9 +1463,7 @@
                             {:else}
                               <span>🔐 Player</span>
                             {/if}
-                            {#if participant.hasWon}
-                              <span class="text-yellow-600">🏆 Winner</span>
-                            {/if}
+                            <!-- Winner badges removed - leaderboard determines ranking -->
                           </div>
                         </div>
                       </div>

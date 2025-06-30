@@ -688,32 +688,7 @@
     </div>
 
     <!-- Winner Announcement -->
-    {#if game.status === "COMPLETED" && game.winner}
-      <Card.Root
-        class="border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-950"
-      >
-        <Card.Content class="pt-6">
-          <div class="flex items-center gap-4">
-            <div class="text-4xl">🏆</div>
-            <div>
-              <h2
-                class="text-2xl font-bold text-yellow-800 dark:text-yellow-200"
-              >
-                We Have a Winner!
-              </h2>
-              <p class="text-yellow-700 dark:text-yellow-300">
-                🎉 Congratulations to <strong
-                  >{game.winner.displayName || game.winner.email}</strong
-                > for getting 5 in a row first!
-              </p>
-              <p class="text-sm text-yellow-600 dark:text-yellow-400 mt-2">
-                ✨ Feel free to keep playing and complete your board!
-              </p>
-            </div>
-          </div>
-        </Card.Content>
-      </Card.Root>
-    {/if}
+    <!-- Winner banner removed - games now use leaderboard-based scoring -->
 
     <!-- Mobile: Bingo Board First -->
     <div class="lg:hidden">
@@ -994,13 +969,7 @@
                               >Guest</Badge
                             >
                           {/if}
-                          {#if participant.hasWon}
-                            <Badge
-                              variant="default"
-                              class="text-xs bg-yellow-500 text-white"
-                              >Winner!</Badge
-                            >
-                          {/if}
+                          <!-- Winner badges removed - leaderboard determines ranking -->
                         </div>
                       </Table.Cell>
                       <Table.Cell class="text-right font-medium"
@@ -1055,13 +1024,7 @@
                       {#if participant.isGuest}
                         <Badge variant="outline" class="text-xs">Guest</Badge>
                       {/if}
-                      {#if participant.hasWon}
-                        <Badge
-                          variant="default"
-                          class="text-xs bg-yellow-500 text-white"
-                          >Winner!</Badge
-                        >
-                      {/if}
+                      <!-- Winner badges removed - leaderboard determines ranking -->
                     </div>
                   </div>
                 </div>

@@ -85,15 +85,15 @@ export const PUT: RequestHandler = async ({ params, request }) => {
       guestParticipant.id
     );
 
-    // Check for win condition (5 in a row)
-    const hasWon = checkWinCondition(completedCells);
+    // No more win conditions - games continue running based on leaderboard/points
+    // Players no longer "win" by getting 5 in a row
 
     // Prepare update data
     const updateData: any = {
       completedCells,
       score,
       scoreBreakdown: breakdown,
-      hasWon,
+      hasWon: false, // Always false - no more traditional wins
     };
 
     // Include photoUrls if provided
@@ -107,17 +107,8 @@ export const PUT: RequestHandler = async ({ params, request }) => {
       data: updateData,
     });
 
-    // If this is the first person to win and game is still active, mark the game as completed
-    if (
-      hasWon &&
-      !guestParticipant.hasWon &&
-      guestParticipant.game.status === "ACTIVE"
-    ) {
-      await prisma.game.update({
-        where: { id: gameId },
-        data: { status: "COMPLETED" },
-      });
-    }
+    // Game continues running - no automatic completion based on patterns
+    // Games can only be manually ended by game masters
 
     return json(updatedParticipant);
   } catch (err) {
@@ -129,27 +120,5 @@ export const PUT: RequestHandler = async ({ params, request }) => {
   }
 };
 
-function checkWinCondition(completedCells: number[]): boolean {
-  // Bingo win patterns (5x5 grid)
-  const winPatterns = [
-    // Rows
-    [0, 1, 2, 3, 4],
-    [5, 6, 7, 8, 9],
-    [10, 11, 12, 13, 14],
-    [15, 16, 17, 18, 19],
-    [20, 21, 22, 23, 24],
-    // Columns
-    [0, 5, 10, 15, 20],
-    [1, 6, 11, 16, 21],
-    [2, 7, 12, 17, 22],
-    [3, 8, 13, 18, 23],
-    [4, 9, 14, 19, 24],
-    // Diagonals
-    [0, 6, 12, 18, 24],
-    [4, 8, 12, 16, 20],
-  ];
-
-  return winPatterns.some((pattern) =>
-    pattern.every((cell) => completedCells.includes(cell))
-  );
-}
+// Remove the checkWinCondition function as it's no longer needed
+// Games now continue running with points-based leaderboard scoring

@@ -99,14 +99,14 @@ export const PUT: RequestHandler = async ({ request, params }) => {
       currentParticipant.id
     );
 
-    // Check for win condition (5 in a row)
-    const hasWon = checkForWin(completedCells);
+    // No more win conditions - games continue running based on leaderboard/points
+    // Players no longer "win" by getting 5 in a row
 
     const updateData: any = {
       completedCells,
       score,
       scoreBreakdown: breakdown,
-      hasWon,
+      hasWon: false, // Always false - no more traditional wins
     };
 
     // Include photoUrls if provided
@@ -127,22 +127,9 @@ export const PUT: RequestHandler = async ({ request, params }) => {
       },
     });
 
-    // If this participant won and no one has won yet, mark them as winner
-    if (hasWon) {
-      const game = await prisma.game.findUnique({
-        where: { id: gameId },
-      });
-
-      if (game && !game.winnerId) {
-        await prisma.game.update({
-          where: { id: gameId },
-          data: {
-            winnerId: userId,
-            status: "COMPLETED",
-          },
-        });
-      }
-    }
+    // Game continues running - no automatic completion or winner setting
+    // Games can only be manually ended by game masters
+    // Winner is determined by highest score on the leaderboard
 
     return json(participant);
   } catch (error) {
@@ -151,28 +138,5 @@ export const PUT: RequestHandler = async ({ request, params }) => {
   }
 };
 
-function checkForWin(completedCells: number[]): boolean {
-  // Define winning patterns (5 in a row: horizontal, vertical, diagonal)
-  const winningPatterns = [
-    // Horizontal
-    [0, 1, 2, 3, 4],
-    [5, 6, 7, 8, 9],
-    [10, 11, 12, 13, 14],
-    [15, 16, 17, 18, 19],
-    [20, 21, 22, 23, 24],
-    // Vertical
-    [0, 5, 10, 15, 20],
-    [1, 6, 11, 16, 21],
-    [2, 7, 12, 17, 22],
-    [3, 8, 13, 18, 23],
-    [4, 9, 14, 19, 24],
-    // Diagonal
-    [0, 6, 12, 18, 24],
-    [4, 8, 12, 16, 20],
-  ];
-
-  // Check if any winning pattern is completely filled
-  return winningPatterns.some((pattern) =>
-    pattern.every((cell) => completedCells.includes(cell))
-  );
-}
+// Remove the checkForWin function as it's no longer needed
+// Games now continue running with points-based leaderboard scoring
