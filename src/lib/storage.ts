@@ -106,8 +106,14 @@ export async function initializeStorage(): Promise<boolean> {
         BUCKET_NAME,
         {
           public: true,
-          allowedMimeTypes: ["image/webp", "image/jpeg", "image/png"],
-          fileSizeLimit: 1048576, // 1MB limit (optimized images)
+          allowedMimeTypes: [
+            "image/webp",
+            "image/jpeg",
+            "image/png",
+            "video/webm",
+            "video/mp4",
+          ],
+          fileSizeLimit: 5242880, // 5MB limit (supports optimized videos)
         }
       );
 

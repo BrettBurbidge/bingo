@@ -61,7 +61,9 @@ model GameParticipant {
   joinedAt       DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
   boardData      String[] @default([]) @map("board_data")
   cardTypeData   String[] @default([]) @map("card_type_data") // "see" or "action" for each board position
-  photoUrls      String[] @default([]) @map("photo_urls")
+  photoUrls      String[] @default([]) @map("photo_urls") // Legacy - will be migrated to mediaUrls
+  mediaUrls      Json[]   @default([]) @map("media_urls") // New flexible media system: [{ photos: [...], videos: [...], documents: [...] }]
+  mediaTypes     String[] @default([]) @map("media_types") // Types of media per cell: ["photo,video", "photo", "video"]
   hasWon         Boolean  @default(false) @map("has_won")
   game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
   user           Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -81,7 +83,9 @@ model GuestParticipant {
   joinedAt       DateTime @default(now()) @map("joined_at") @db.Timestamptz(6)
   boardData      String[] @default([]) @map("board_data")
   cardTypeData   String[] @default([]) @map("card_type_data") // "see" or "action" for each board position
-  photoUrls      String[] @default([]) @map("photo_urls")
+  photoUrls      String[] @default([]) @map("photo_urls") // Legacy - will be migrated to mediaUrls
+  mediaUrls      Json[]   @default([]) @map("media_urls") // New flexible media system: [{ photos: [...], videos: [...], documents: [...] }]
+  mediaTypes     String[] @default([]) @map("media_types") // Types of media per cell: ["photo,video", "photo", "video"]
   hasWon         Boolean  @default(false) @map("has_won")
   game           Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
 

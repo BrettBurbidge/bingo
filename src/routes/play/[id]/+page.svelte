@@ -14,7 +14,7 @@
   import { Input } from "$lib/components/ui/input";
   import { Label } from "$lib/components/ui/label";
   import { Badge } from "$lib/components/ui/badge";
-  import CameraCapture from "$lib/components/CameraCapture.svelte";
+  import MediaCapture from "$lib/components/MediaCapture.svelte";
   import ScoringRules from "$lib/components/ScoringRules.svelte";
   import { uploadPhoto } from "$lib/storage";
   import "$lib/setup-storage";
@@ -238,15 +238,21 @@
     }
   }
 
-  async function handlePhotoTaken(event: CustomEvent<File>) {
+  async function handleMediaTaken(
+    event: CustomEvent<{
+      type: "photo" | "video";
+      file: File;
+      compressionInfo?: any;
+    }>
+  ) {
     if (!guestParticipant || selectedCellIndex === -1) return;
 
     try {
       photoUploading = true;
 
-      // Upload photo via API endpoint
+      // Upload media via API endpoint
       const formData = new FormData();
-      formData.append("file", event.detail);
+      formData.append("file", event.detail.file);
       formData.append("participantId", guestParticipant.id);
       formData.append("cellIndex", selectedCellIndex.toString());
 
@@ -1498,12 +1504,12 @@
       </div>
     {/if}
 
-    <!-- Camera Modal -->
+    <!-- Media Capture Modal -->
     <div class="print:hidden">
-      <CameraCapture
+      <MediaCapture
         bind:open={showCameraModal}
         cellText={selectedCellText}
-        on:photo={handlePhotoTaken}
+        on:media={handleMediaTaken}
         on:cancel={handleCameraCancel}
       />
     </div>
