@@ -18,8 +18,11 @@
 
   $: gameId = $page.params.id;
   $: isEditMode = $page.url.searchParams.get("edit") === "true";
+  $: isAiMode = $page.url.searchParams.get("ai") === "true";
   $: pageTitle = isEditMode ? "Edit Game" : "Setup Game";
   $: buttonText = isEditMode ? "Save Changes" : "Start Game";
+
+  let aiGeneratedInfo: { topic: string; timestamp: number } | null = null;
 
   function updateCardType(index: number, type: string) {
     cardTypes = cardTypes.map((currentType, i) =>
@@ -60,12 +63,52 @@
         }
       }
 
-      // Pre-populate words and card types if they exist (e.g., from cloned game)
-      if (game.wordList && game.wordList.length === 24) {
-        words = [...game.wordList];
+      // Check for AI-generated words first (takes priority)
+      if (isAiMode) {
+        const aiWords = localStorage.getItem(`ai-generated-words-${gameId}`);
+        if (aiWords) {
+          try {
+            const aiData = JSON.parse(aiWords);
+            if (aiData.words && aiData.words.length === 24) {
+              words = [...aiData.words];
+              aiGeneratedInfo = {
+                topic: aiData.topic,
+                timestamp: aiData.timestamp,
+              };
+              // Auto-assign card types based on word content (simple heuristic)
+              cardTypes = aiData.words.map((word: string) => {
+                const lowerWord = word.toLowerCase();
+                if (
+                  lowerWord.includes("see") ||
+                  lowerWord.includes("spot") ||
+                  lowerWord.includes("view") ||
+                  lowerWord.includes("watch") ||
+                  lowerWord.includes("find") ||
+                  lowerWord.includes("notice")
+                ) {
+                  return "see";
+                } else {
+                  return "action";
+                }
+              });
+              // Clear the AI data after use
+              localStorage.removeItem(`ai-generated-words-${gameId}`);
+            }
+          } catch (e) {
+            console.error("Failed to load AI-generated words:", e);
+          }
+        }
       }
-      if (game.cardTypes && game.cardTypes.length === 24) {
-        cardTypes = [...game.cardTypes];
+
+      // Pre-populate words and card types if they exist (e.g., from cloned game)
+      // Only if we didn't already load AI words
+      if (!aiGeneratedInfo) {
+        if (game.wordList && game.wordList.length === 24) {
+          words = [...game.wordList];
+        }
+        if (game.cardTypes && game.cardTypes.length === 24) {
+          cardTypes = [...game.cardTypes];
+        }
       }
     } catch (error) {
       console.error("Error loading game:", error);
@@ -207,6 +250,11 @@
         </p>
       </div>
       <div class="flex gap-2">
+        {#if !isEditMode}
+          <Button variant="default" href="/game/{gameId}/ai-words">
+            🤖 AI Word Generator
+          </Button>
+        {/if}
         <Button variant="outline" on:click={fillSampleWords}>
           Fill Sample Words
         </Button>
@@ -224,6 +272,20 @@
         </Card.Description>
       </Card.Header>
       <Card.Content class="space-y-6">
+        <!-- AI Generated Words Info -->
+        {#if aiGeneratedInfo}
+          <div
+            class="p-4 bg-blue-50 dark:bg-blue-950/50 rounded-lg border border-blue-200 dark:border-blue-800"
+          >
+            <p class="text-sm text-blue-800 dark:text-blue-200">
+              🤖 <strong>AI Generated Words:</strong> These words were
+              automatically generated for the topic "{aiGeneratedInfo.topic}".
+              You can edit them as needed or regenerate new ones using the AI
+              Word Generator.
+            </p>
+          </div>
+        {/if}
+
         <!-- Edit Mode Warning -->
         {#if isEditMode}
           <div
