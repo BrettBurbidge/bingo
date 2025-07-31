@@ -1,10 +1,15 @@
 <script lang="ts">
-  import { createEventDispatcher, onMount, onDestroy } from 'svelte';
-  import Button from './ui/button.svelte';
-  import * as Dialog from './ui/dialog';
+  import { createEventDispatcher, onMount, onDestroy } from "svelte";
+  import Button from "./ui/button.svelte";
+  import * as Dialog from "./ui/dialog";
+  import {
+    optimizeImageForUpload,
+    formatFileSize,
+    type CompressionResult,
+  } from "$lib/image-utils";
 
   export let open = false;
-  export let cellText = '';
+  export let cellText = "";
 
   const dispatch = createEventDispatcher<{
     photo: File;
@@ -18,70 +23,103 @@
   let capturedPhoto: File | null = null;
   let photoPreview: string | null = null;
   let fileInput: HTMLInputElement;
+  let isCompressing = false;
+  let compressionInfo: CompressionResult | null = null;
 
   async function startCamera() {
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' } // Use back camera on mobile
+        video: { facingMode: "environment" }, // Use back camera on mobile
       });
       if (video) {
         video.srcObject = stream;
         showCamera = true;
       }
     } catch (error) {
-      console.error('Error accessing camera:', error);
-      alert('Unable to access camera. Please try uploading a photo instead.');
+      console.error("Error accessing camera:", error);
+      alert("Unable to access camera. Please try uploading a photo instead.");
     }
   }
 
   function stopCamera() {
     if (stream) {
-      stream.getTracks().forEach(track => track.stop());
+      stream.getTracks().forEach((track) => track.stop());
       stream = null;
     }
     showCamera = false;
   }
 
-  function capturePhoto() {
+  async function capturePhoto() {
     if (!video || !canvas) return;
 
-    const context = canvas.getContext('2d');
+    const context = canvas.getContext("2d");
     if (!context) return;
 
-    // Set canvas size to video size
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    isCompressing = true;
+    compressionInfo = null;
 
-    // Draw the video frame to canvas
-    context.drawImage(video, 0, 0);
+    try {
+      // Set canvas size to video size
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
 
-    // Convert canvas to blob
-    canvas.toBlob(async (blob) => {
+      // Draw the video frame to canvas
+      context.drawImage(video, 0, 0);
+
+      // Convert canvas to blob first
+      const blob = await new Promise<Blob | null>((resolve) => {
+        canvas.toBlob(resolve, "image/jpeg", 0.9);
+      });
+
       if (blob) {
-        const file = new File([blob], `bingo-photo-${Date.now()}.jpg`, {
-          type: 'image/jpeg'
+        const originalFile = new File([blob], `raw-photo-${Date.now()}.jpg`, {
+          type: "image/jpeg",
         });
-        capturedPhoto = file;
-        photoPreview = URL.createObjectURL(blob);
+
+        // Optimize the image for upload
+        const result = await optimizeImageForUpload(originalFile);
+
+        capturedPhoto = result.file;
+        compressionInfo = result;
+        photoPreview = URL.createObjectURL(result.file);
         stopCamera();
       }
-    }, 'image/jpeg', 0.8);
+    } catch (error) {
+      console.error("Error compressing photo:", error);
+      alert("Error processing photo. Please try again.");
+    } finally {
+      isCompressing = false;
+    }
   }
 
-  function handleFileSelect(event: Event) {
+  async function handleFileSelect(event: Event) {
     const target = event.target as HTMLInputElement;
     const file = target.files?.[0];
-    
-    if (file && file.type.startsWith('image/')) {
-      capturedPhoto = file;
-      photoPreview = URL.createObjectURL(file);
-      stopCamera();
+
+    if (file && file.type.startsWith("image/")) {
+      isCompressing = true;
+      compressionInfo = null;
+
+      try {
+        // Optimize the uploaded image
+        const result = await optimizeImageForUpload(file);
+
+        capturedPhoto = result.file;
+        compressionInfo = result;
+        photoPreview = URL.createObjectURL(result.file);
+        stopCamera();
+      } catch (error) {
+        console.error("Error compressing uploaded image:", error);
+        alert("Error processing image. Please try a different file.");
+      } finally {
+        isCompressing = false;
+      }
     }
   }
 
   function submitPhoto() {
     if (capturedPhoto) {
-      dispatch('photo', capturedPhoto);
+      dispatch("photo", capturedPhoto);
       reset();
     }
   }
@@ -94,19 +132,19 @@
     }
     stopCamera();
     if (fileInput) {
-      fileInput.value = '';
+      fileInput.value = "";
     }
   }
 
   function handleCancel() {
     reset();
-    dispatch('cancel');
+    dispatch("cancel");
   }
 
   onMount(() => {
     // Initialize storage bucket if needed
-    if (typeof window !== 'undefined') {
-      import('$lib/storage').then(({ initializeStorage }) => {
+    if (typeof window !== "undefined") {
+      import("$lib/storage").then(({ initializeStorage }) => {
         initializeStorage();
       });
     }
@@ -134,16 +172,41 @@
     </Dialog.Header>
 
     <div class="space-y-4">
-      {#if photoPreview}
+      {#if isCompressing}
+        <!-- Compression Loading -->
+        <div class="flex items-center justify-center p-8">
+          <div class="text-center space-y-2">
+            <div
+              class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"
+            ></div>
+            <p class="text-sm text-gray-600">Optimizing image...</p>
+          </div>
+        </div>
+      {:else if photoPreview}
         <!-- Photo Preview -->
         <div class="space-y-4">
           <div class="relative bg-black rounded-lg overflow-hidden">
-            <img 
-              src={photoPreview} 
-              alt="Captured photo" 
+            <img
+              src={photoPreview}
+              alt="Captured photo"
               class="w-full h-48 object-cover"
             />
           </div>
+
+          {#if compressionInfo}
+            <!-- Compression Info -->
+            <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+              <div class="flex items-center gap-2 text-sm">
+                <span class="text-green-600">✅</span>
+                <span class="text-green-800">
+                  Optimized: {formatFileSize(compressionInfo.originalSize)} →
+                  {formatFileSize(compressionInfo.compressedSize)}
+                  ({compressionInfo.compressionRatio}% smaller)
+                </span>
+              </div>
+            </div>
+          {/if}
+
           <div class="flex gap-2">
             <Button on:click={submitPhoto} class="flex-1">
               Use This Photo
@@ -166,8 +229,19 @@
             ></video>
           </div>
           <div class="flex gap-2">
-            <Button on:click={capturePhoto} class="flex-1">
-              📸 Capture
+            <Button
+              on:click={capturePhoto}
+              class="flex-1"
+              disabled={isCompressing}
+            >
+              {#if isCompressing}
+                <div
+                  class="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"
+                ></div>
+                Processing...
+              {:else}
+                📸 Capture
+              {/if}
             </Button>
             <Button variant="outline" on:click={stopCamera} class="flex-1">
               Cancel
@@ -177,10 +251,23 @@
       {:else}
         <!-- Options -->
         <div class="space-y-3">
-          
+          <Button on:click={startCamera} class="w-full">📸 Take Photo</Button>
+
           <div class="relative">
-            <Button variant="outline" class="w-full" on:click={() => fileInput?.click()}>
-              📁 Add Photo
+            <Button
+              variant="outline"
+              class="w-full"
+              disabled={isCompressing}
+              on:click={() => !isCompressing && fileInput?.click()}
+            >
+              {#if isCompressing}
+                <div
+                  class="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"
+                ></div>
+                Processing...
+              {:else}
+                📁 Upload Photo
+              {/if}
             </Button>
             <input
               bind:this={fileInput}
@@ -188,6 +275,7 @@
               accept="image/*"
               class="absolute inset-0 opacity-0 cursor-pointer"
               on:change={handleFileSelect}
+              disabled={isCompressing}
             />
           </div>
         </div>
@@ -195,12 +283,10 @@
     </div>
 
     <Dialog.Footer>
-      <Button variant="outline" on:click={handleCancel}>
-        Cancel
-      </Button>
+      <Button variant="outline" on:click={handleCancel}>Cancel</Button>
     </Dialog.Footer>
   </Dialog.Content>
 </Dialog.Root>
 
 <!-- Hidden canvas for photo capture -->
-<canvas bind:this={canvas} class="hidden"></canvas> 
+<canvas bind:this={canvas} class="hidden"></canvas>
