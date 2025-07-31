@@ -349,21 +349,29 @@
               </Card.Header>
 
               <Card.Content class="pt-0">
-                <div class="text-sm text-muted-foreground mb-4">
-                  {#if game.publishedAt}
-                    Published: {new Date(game.publishedAt).toLocaleDateString()}
-                  {:else}
-                    Created: {new Date(game.createdAt).toLocaleDateString()}
-                  {/if}
-                </div>
-
-                <div class="space-y-2">
-                  <Button href="/game/{game.id}" class="w-full" size="sm">
-                    {game.gameMasterId === $user?.id
-                      ? "Manage Game"
-                      : "View Game"}
+                <div class="space-y-3">
+                  <!-- Primary Action Button -->
+                  <Button href="/game/{game.id}" class="w-full" size="default">
+                    {#if game.gameMasterId === $user?.id}
+                      ⚙️ Manage Game
+                    {:else}
+                      👁️ View Game
+                    {/if}
                   </Button>
 
+                  <!-- Less prominent publish date -->
+                  <div class="text-xs text-muted-foreground/70 text-center">
+                    {#if game.publishedAt}
+                      Published {new Date(
+                        game.publishedAt
+                      ).toLocaleDateString()}
+                    {:else}
+                      Created {new Date(game.createdAt).toLocaleDateString()}
+                    {/if}
+                  </div>
+                </div>
+
+                <div class="space-y-2 mt-3">
                   <div class="flex gap-2">
                     {#if game.publishedAt}
                       <Button

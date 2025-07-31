@@ -16,28 +16,49 @@ export const POST: RequestHandler = async ({ params, request }) => {
     }
 
     // Validate file type - accept images and videos
+    // Handle MIME types with codec information (e.g., "video/webm;codecs=vp9")
+    const baseMimeType = file.type.toLowerCase().split(";")[0];
+
+    // Debug logging
+    console.log("File upload debug:", {
+      originalType: file.type,
+      baseMimeType: baseMimeType,
+      fileName: file.name,
+      fileSize: file.size,
+    });
+
     const allowedImageTypes = [
       "image/webp",
       "image/jpeg",
       "image/jpg",
       "image/png",
     ];
-    const allowedVideoTypes = ["video/webm", "video/mp4", "video/quicktime"];
+    const allowedVideoTypes = [
+      "video/mp4",
+      "video/quicktime",
+      "video/x-m4v",
+      "video/mp4v-es",
+    ]; // MP4 variants for Supabase compatibility
     const allAllowedTypes = [...allowedImageTypes, ...allowedVideoTypes];
 
-    const isImage = allowedImageTypes.includes(file.type.toLowerCase());
-    const isVideo = allowedVideoTypes.includes(file.type.toLowerCase());
+    const isImage = allowedImageTypes.includes(baseMimeType);
+    const isVideo = allowedVideoTypes.includes(baseMimeType);
 
-    if (!allAllowedTypes.includes(file.type.toLowerCase())) {
+    if (!allAllowedTypes.includes(baseMimeType)) {
+      console.error("File type rejected:", {
+        baseMimeType,
+        allowedTypes: allAllowedTypes,
+        fileName: file.name,
+      });
       throw error(
         400,
-        "Only WebP, JPEG, PNG images and WebM, MP4 videos are allowed"
+        `File type '${baseMimeType}' not allowed. Only WebP, JPEG, PNG images and MP4 videos are allowed`
       );
     }
 
     // Validate file size based on media type
     const maxImageSize = 1 * 1024 * 1024; // 1MB for images
-    const maxVideoSize = 5 * 1024 * 1024; // 5MB for videos
+    const maxVideoSize = 30 * 1024 * 1024; // 30MB for videos (matches Supabase storage limit)
     const maxSize = isVideo ? maxVideoSize : maxImageSize;
 
     if (file.size > maxSize) {
@@ -51,11 +72,9 @@ export const POST: RequestHandler = async ({ params, request }) => {
 
     // Create a unique filename with proper extension
     let fileExt = "jpg"; // default
-    if (file.type === "image/webp") fileExt = "webp";
-    else if (file.type === "image/png") fileExt = "png";
-    else if (file.type === "video/webm") fileExt = "webm";
-    else if (file.type === "video/mp4" || file.type === "video/quicktime")
-      fileExt = "mp4";
+    if (baseMimeType === "image/webp") fileExt = "webp";
+    else if (baseMimeType === "image/png") fileExt = "png";
+    else if (isVideo) fileExt = "mp4"; // All supported video types use .mp4 extension
 
     const fileName = `${gameId}/${participantId}/${cellIndex}-${Date.now()}.${fileExt}`;
 
@@ -66,7 +85,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
     const { data, error: uploadError } = await supabase.storage
       .from("bingo-photos")
       .upload(fileName, fileBuffer, {
-        contentType: file.type,
+        contentType: baseMimeType, // Use base MIME type without codec info
         cacheControl: "31536000", // 1 year cache for photos (they don't change)
         upsert: false,
       });

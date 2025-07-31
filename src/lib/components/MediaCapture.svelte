@@ -126,18 +126,21 @@
 
       const options: MediaRecorderOptions = {};
 
-      // Try to use WebM with VP9 codec, fallback to available options
-      const supportedTypes = [
-        "video/webm;codecs=vp9",
-        "video/webm;codecs=vp8",
-        "video/mp4;codecs=h264",
-      ];
+      // Only try MP4 for Supabase Storage compatibility
+      const supportedTypes = ["video/mp4;codecs=h264"];
 
       for (const type of supportedTypes) {
         if (MediaRecorder.isTypeSupported(type)) {
           options.mimeType = type;
           break;
         }
+      }
+
+      // If no MP4 support, show helpful error
+      if (!options.mimeType) {
+        throw new Error(
+          "MP4 video recording is not supported in this browser. This browser can only record WebM videos, which are not supported by our storage system. Please upload an MP4 file instead, or use Safari which supports MP4 recording."
+        );
       }
 
       mediaRecorder = new MediaRecorder(stream, options);
@@ -221,11 +224,27 @@
 
     if (!file) return;
 
-    const isImage = file.type.startsWith("image/");
-    const isVideo = file.type.startsWith("video/");
+    const baseMimeType = file.type.toLowerCase().split(";")[0];
+    const isImage = baseMimeType.startsWith("image/");
+    const isVideo = baseMimeType.startsWith("video/");
 
     if (!isImage && !isVideo) {
       alert("Please select an image or video file.");
+      return;
+    }
+
+    // Check for unsupported video formats
+    const supportedVideoTypes = [
+      "video/mp4",
+      "video/quicktime",
+      "video/x-m4v",
+      "video/mp4v-es",
+    ];
+
+    if (isVideo && !supportedVideoTypes.includes(baseMimeType)) {
+      alert(
+        `${baseMimeType} videos are not supported. Please upload an MP4 video file instead.`
+      );
       return;
     }
 
@@ -478,13 +497,27 @@
           </div>
 
           <!-- Camera/Recording Actions -->
-          <Button on:click={startCamera} class="w-full">
-            {#if selectedMediaType === "video"}
-              🎥 Record Video
-            {:else}
-              📸 Take Photo
-            {/if}
-          </Button>
+          {#if selectedMediaType === "video" && !supportsVideoRecording()}
+            <!-- No recording button for browsers without MP4 support -->
+            <div
+              class="bg-gray-50 border border-gray-200 rounded-lg p-3 text-center"
+            >
+              <p class="text-sm text-gray-600 mb-2">
+                📱 Video recording requires MP4 support
+              </p>
+              <p class="text-xs text-gray-500">
+                Available in Safari • Upload MP4 files below
+              </p>
+            </div>
+          {:else}
+            <Button on:click={startCamera} class="w-full">
+              {#if selectedMediaType === "video"}
+                🎥 Record Video
+              {:else}
+                📸 Take Photo
+              {/if}
+            </Button>
+          {/if}
 
           <!-- File Upload -->
           <div class="relative">
@@ -499,6 +532,8 @@
                   class="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"
                 ></div>
                 Processing...
+              {:else if selectedMediaType === "video" && !supportsVideoRecording()}
+                📁 Upload MP4 Video
               {:else}
                 📁 Upload {selectedMediaType === "video" ? "Video" : "Photo"}
               {/if}
@@ -514,10 +549,14 @@
           </div>
 
           {#if selectedMediaType === "video" && !supportsVideoRecording()}
-            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <p class="text-sm text-yellow-800">
-                Video recording is not supported in this browser. You can still
-                upload video files.
+            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p class="text-sm text-blue-800">
+                <strong>📱 Browser Limitation:</strong> This browser only supports
+                WebM video recording, but our storage system requires MP4 format.
+              </p>
+              <p class="text-xs text-blue-600 mt-1">
+                <strong>Solutions:</strong> Use Safari for recording, or upload MP4
+                files
               </p>
             </div>
           {/if}

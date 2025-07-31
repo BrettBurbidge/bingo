@@ -110,10 +110,12 @@ export async function initializeStorage(): Promise<boolean> {
             "image/webp",
             "image/jpeg",
             "image/png",
-            "video/webm",
             "video/mp4",
+            "video/quicktime",
+            "video/x-m4v",
+            "video/mp4v-es",
           ],
-          fileSizeLimit: 5242880, // 5MB limit (supports optimized videos)
+          fileSizeLimit: 31457280, // 30MB limit (matches Supabase storage configuration)
         }
       );
 

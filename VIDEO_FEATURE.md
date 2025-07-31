@@ -54,13 +54,13 @@ The video upload feature extends the existing photo system to support video cont
 #### **Upload Endpoint (`src/routes/api/games/[id]/photos/+server.ts`)**
 
 - **Multi-format Support** - Images: WebP, JPEG, PNG | Videos: WebM, MP4
-- **Smart Size Limits** - 1MB for images, 5MB for videos
+- **Smart Size Limits** - 1MB for images, 30MB for videos
 - **Type Detection** - Automatic file type validation
 - **Optimized Headers** - Long-term caching for media files
 
 #### **Storage Configuration**
 
-- **Bucket Updates** - 5MB limit to accommodate videos
+- **Bucket Updates** - 30MB limit for high-quality videos
 - **MIME Type Support** - Added video format support
 - **Supabase Integration** - Updated bucket policies
 
@@ -95,12 +95,12 @@ The video upload feature extends the existing photo system to support video cont
 
 ```typescript
 {
-  maxWidth: 720,           // Optimal for web/mobile
-  maxHeight: 720,          // Square format
-  maxDurationSeconds: 30,  // Reasonable limit
-  quality: 0.6,           // Good compression ratio
-  maxSizeMB: 3,           // Target file size
-  format: 'webm'          // Preferred format
+  maxWidth: 1080,          // High resolution for quality
+  maxHeight: 1080,         // Square format
+  maxDurationSeconds: 30,  // 30 second limit
+  quality: 0.8,           // High quality (less compression)
+  maxSizeMB: 20,          // Larger target for better quality
+  format: 'mp4'           // MP4 for universal compatibility
 }
 ```
 
@@ -114,10 +114,11 @@ The video upload feature extends the existing photo system to support video cont
 
 ### **Compression Results**
 
-- **Typical Reduction**: 60-80% smaller than original
-- **File Size Range**: 500KB - 3MB per video
-- **Quality**: Maintains good visual quality
+- **Typical Reduction**: 40-60% smaller than original (less aggressive)
+- **File Size Range**: 2MB - 20MB per video (higher quality)
+- **Quality**: Maintains excellent visual quality
 - **Duration**: Up to 30 seconds per video
+- **Frame Rate**: 30 FPS for smooth playback
 
 ### **Cost Optimization**
 

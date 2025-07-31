@@ -86,17 +86,24 @@
       mediaItems = [];
 
       // Handle legacy photoUrls (for backward compatibility)
+      // Now also detects videos by file extension
       if (
         participant.photoUrls &&
         participant.boardData &&
         participant.cardTypeData
       ) {
         for (let i = 0; i < participant.photoUrls.length; i++) {
-          const photoUrl = participant.photoUrls[i];
-          if (photoUrl && photoUrl.trim() !== "") {
+          const mediaUrl = participant.photoUrls[i];
+          if (mediaUrl && mediaUrl.trim() !== "") {
+            // Detect media type by file extension or URL pattern
+            const isVideo =
+              /\.(mp4|webm|mov|quicktime|m4v)(\?|$)/i.test(mediaUrl) ||
+              mediaUrl.includes("video") ||
+              mediaUrl.includes(".mp4");
+
             mediaItems.push({
-              url: photoUrl,
-              type: "photo",
+              url: mediaUrl,
+              type: isVideo ? "video" : "photo",
               title: participant.boardData[i] || "Unknown",
               cardType: participant.cardTypeData[i] || "see",
               cellIndex: i,
@@ -192,7 +199,7 @@
 </script>
 
 <svelte:head>
-  <title>{participantName}'s Photo Gallery - {game?.name || "Bingo Game"}</title
+  <title>{participantName}'s Media Gallery - {game?.name || "Bingo Game"}</title
   >
 </svelte:head>
 
@@ -221,7 +228,7 @@
     <div class="flex items-center justify-between mb-8">
       <div>
         <h1 class="text-3xl font-bold tracking-tight mb-2">
-          📸 {participantName}'s Photo Gallery
+          📸 {participantName}'s Media Gallery
         </h1>
         <p class="text-muted-foreground">
           Game: {game.name} • {mediaItems.length} media item{mediaItems.length ===
@@ -266,31 +273,45 @@
                 />
               {:else if item.type === "video"}
                 <!-- Video -->
-                <video
-                  src={item.url}
-                  class="w-full h-full object-cover"
-                  muted
-                  controls
-                  preload="metadata"
-                >
-                  <track kind="captions" />
-                </video>
+                <div class="video-container">
+                  <video
+                    src={item.url}
+                    class="w-full h-full object-cover"
+                    controls
+                    preload="metadata"
+                    playsinline
+                    controlsList="nodownload"
+                    crossorigin="anonymous"
+                    title="Video for {item.title}"
+                  >
+                    <track kind="captions" />
+                    Your browser does not support the video tag.
+                  </video>
+                </div>
 
                 <!-- Video type indicator -->
                 <div
-                  class="absolute top-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs font-medium"
+                  class="absolute top-2 right-2 bg-black/70 text-white px-2 py-1 rounded text-xs font-medium z-10"
                 >
                   🎥 VIDEO
                 </div>
               {/if}
 
-              <!-- Overlay -->
+              <!-- Overlay (but not over video controls) -->
               <div
-                class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"
+                class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent {item.type ===
+                'video'
+                  ? 'pointer-events-none'
+                  : ''}"
               ></div>
 
               <!-- Card info overlay -->
-              <div class="absolute bottom-0 left-0 right-0 p-4">
+              <div
+                class="absolute bottom-0 left-0 right-0 p-4 {item.type ===
+                'video'
+                  ? 'pointer-events-none'
+                  : ''}"
+              >
                 <div class="flex items-center gap-2 mb-2">
                   <!-- Card type badge -->
                   <Badge
@@ -360,5 +381,32 @@
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  /* Ensure video controls are fully functional */
+  video {
+    position: relative;
+    z-index: 1;
+  }
+
+  video::-webkit-media-controls-panel {
+    background: rgba(0, 0, 0, 0.8);
+  }
+
+  video::-webkit-media-controls-volume-slider-container,
+  video::-webkit-media-controls-volume-slider,
+  video::-webkit-media-controls-mute-button {
+    display: block !important;
+  }
+
+  /* Make sure overlays don't interfere with video controls */
+  .video-container {
+    position: relative;
+  }
+
+  .video-container video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
 </style>

@@ -198,10 +198,10 @@ async function recordCompressedVideo(
   mimeType: string
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
-    const stream = canvas.captureStream(24); // 24 FPS
+    const stream = canvas.captureStream(30); // 30 FPS for smoother video
     const mediaRecorder = new MediaRecorder(stream, {
       mimeType,
-      videoBitsPerSecond: Math.round(500000 * quality), // Adjust bitrate based on quality
+      videoBitsPerSecond: Math.round(2000000 * quality), // Higher bitrate for better quality
     });
 
     const chunks: Blob[] = [];
@@ -226,7 +226,7 @@ async function recordCompressedVideo(
 
     // Play and draw video frames
     let currentTime = 0;
-    const frameInterval = 1000 / 24; // 24 FPS
+    const frameInterval = 1000 / 30; // 30 FPS for smoother playback
 
     const drawFrame = () => {
       if (currentTime >= duration) {
@@ -297,26 +297,73 @@ async function generateVideoThumbnail(
  * Check if browser supports video recording
  */
 export function supportsVideoRecording(): boolean {
-  return !!(
-    navigator.mediaDevices &&
-    navigator.mediaDevices.getUserMedia &&
-    window.MediaRecorder
-  );
+  if (
+    !(
+      navigator.mediaDevices &&
+      navigator.mediaDevices.getUserMedia &&
+      typeof window !== "undefined" &&
+      "MediaRecorder" in window
+    )
+  ) {
+    return false;
+  }
+
+  // Check specifically for MP4 support
+  return MediaRecorder.isTypeSupported("video/mp4;codecs=h264");
 }
 
 /**
- * Optimize video for upload with aggressive compression
+ * Optimize video for upload with MP4 compatibility
+ * For MP4 files: skip compression to avoid format conversion issues
+ * For recorded videos: compress to MP4 (when possible)
  */
 export async function optimizeVideoForUpload(
   file: File
 ): Promise<VideoCompressionResult> {
+  // Check if the input file is an MP4 variant
+  const baseMimeType = file.type.toLowerCase().split(";")[0];
+  const supportedVideoTypes = [
+    "video/mp4",
+    "video/quicktime",
+    "video/x-m4v",
+    "video/mp4v-es",
+  ];
+
+  if (!supportedVideoTypes.includes(baseMimeType)) {
+    throw new Error(
+      `Unsupported video format: ${baseMimeType}. Only MP4 videos are supported for upload.`
+    );
+  }
+
+  // For MP4 files, skip compression to avoid format conversion issues
+  // Just return the original file with basic stats
+  if (baseMimeType === "video/mp4" || baseMimeType === "video/quicktime") {
+    const duration = await getVideoDuration(file);
+
+    // Create a new file with a proper name for upload
+    const timestamp = Date.now();
+    const optimizedFile = new File([file], `bingo-video-${timestamp}.mp4`, {
+      type: "video/mp4",
+    });
+
+    return {
+      file: optimizedFile,
+      originalSize: file.size,
+      compressedSize: file.size,
+      compressionRatio: 0, // No compression applied
+      duration: duration,
+      format: "video/mp4",
+    };
+  }
+
+  // For other formats (like recorded videos), attempt compression
   return compressVideo(file, {
-    maxWidth: 720,
-    maxHeight: 720,
+    maxWidth: 1080, // Higher resolution for better quality
+    maxHeight: 1080,
     maxDurationSeconds: 30,
-    quality: 0.6,
-    maxSizeMB: 3,
-    format: "webm",
+    quality: 0.8, // Higher quality (less compression)
+    maxSizeMB: 20, // Larger target size for better quality (under 30MB limit)
+    format: "mp4",
   });
 }
 

@@ -10,8 +10,8 @@ To enable photo uploads in the Bingo app, you need to set up a storage bucket in
 2. **Create a new bucket:**
    - Bucket name: `bingo-photos`
    - Make it **Public** (check the "Public bucket" option)
-   - File size limit: 5MB (supports optimized videos)
-   - Allowed file types: `image/webp, image/jpeg, image/png, video/webm, video/mp4`
+   - File size limit: 30MB (supports high quality videos up to 30 seconds)
+   - Allowed file types: `image/webp, image/jpeg, image/png, video/mp4`
 
 3. **Set up Storage Policies (if needed):**
    If you encounter "RLS policy" errors, add these policies in Storage → Policies:
@@ -48,8 +48,8 @@ VALUES (
   'bingo-photos',
   'bingo-photos',
   true,
-  5242880,
-  '{"image/webp","image/jpeg","image/png","image/jpg","video/webm","video/mp4"}'
+  31457280,
+  '{"image/webp","image/jpeg","image/png","image/jpg","video/mp4"}'
 )
 ON CONFLICT (id) DO NOTHING;
 

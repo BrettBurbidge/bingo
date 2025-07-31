@@ -651,6 +651,15 @@
     return false;
   }
 
+  function isVideoUrl(url: string): boolean {
+    if (!url) return false;
+    return (
+      /\.(mp4|webm|mov|quicktime|m4v)(\?|$)/i.test(url) ||
+      url.includes("video") ||
+      url.includes(".mp4")
+    );
+  }
+
   function handleViewPhotos(participantId: string) {
     goto(`/play/${gameId}/gallery/${participantId}`);
   }
@@ -1514,19 +1523,42 @@
       />
     </div>
 
-    <!-- Photo View Modal -->
+    <!-- Media View Modal -->
     <div class="print:hidden">
       <Dialog.Root bind:open={showPhotoModal}>
         <Dialog.Content class="max-w-2xl">
           <Dialog.Header>
-            <Dialog.Title>Photo for: {selectedPhotoText}</Dialog.Title>
+            <Dialog.Title>
+              {#if isVideoUrl(selectedPhotoUrl)}
+                🎥 Video for: {selectedPhotoText}
+              {:else}
+                📸 Photo for: {selectedPhotoText}
+              {/if}
+            </Dialog.Title>
           </Dialog.Header>
           <div class="flex justify-center mb-4">
-            <img
-              src={selectedPhotoUrl}
-              alt="Proof photo for {selectedPhotoText}"
-              class="max-w-full max-h-96 object-contain rounded-lg"
-            />
+            {#if isVideoUrl(selectedPhotoUrl)}
+              <!-- Video Preview -->
+              <video
+                src={selectedPhotoUrl}
+                class="max-w-full max-h-96 object-contain rounded-lg"
+                controls
+                preload="metadata"
+                playsinline
+                controlsList="nodownload"
+                title="Video for {selectedPhotoText}"
+              >
+                <track kind="captions" />
+                Your browser does not support the video tag.
+              </video>
+            {:else}
+              <!-- Photo Preview -->
+              <img
+                src={selectedPhotoUrl}
+                alt="Proof photo for {selectedPhotoText}"
+                class="max-w-full max-h-96 object-contain rounded-lg"
+              />
+            {/if}
           </div>
           <Dialog.Footer class="flex gap-2">
             <Button
@@ -1540,7 +1572,8 @@
                   class="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"
                 ></div>
               {/if}
-              🗑️ Remove Photo
+              🗑️ {#if isVideoUrl(selectedPhotoUrl)}Remove Video{:else}Remove
+                Photo{/if}
             </Button>
             <Button
               variant="outline"
@@ -1548,7 +1581,8 @@
               on:click={() => handleChangePhoto()}
               disabled={!guestParticipant || photoActionLoading}
             >
-              📷 Change Photo
+              {#if isVideoUrl(selectedPhotoUrl)}🎥 Change Video{:else}📷 Change
+                Photo{/if}
             </Button>
             <Button
               variant="secondary"
